@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  argon2: false
+  bcrypt: set this to true or false
+  esbuild: set this to true or false

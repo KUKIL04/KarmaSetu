@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #334155;
+  }
+  .embossed-card {
+    background: linear-gradient(135deg, #f0f2f5, #e0e3eb);
+    box-shadow: 20px 20px 40px rgba(15, 23, 42, 0.5), -15px -15px 35px rgba(255, 255, 255, 0.1);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    position: relative;
+  }
+  .embossed-card::before {
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border: 2px solid rgba(228, 155, 15, 0.5); 
+    border-radius: 20px; 
+    pointer-events: none;
+    z-index: 0;
+  }
+  .embossed-input {
+    background: #E6E9EF;
+    border: none;
+    box-shadow: inset 1px 1px 3px #c4c6cc, inset -1px -1px 3px #ffffff;
+    transition: all 0.3s ease;
+  }
+  .embossed-input:focus {
+    box-shadow: inset 2px 2px 4px #babbc1, inset -2px -2px 4px #ffffff;
+    outline: none;
+    background: #ebedf2;
+  }
+  .embossed-badge {
+    background: #E6E9EF;
+    box-shadow: 6px 6px 12px #c4c6cc, -6px -6px 12px #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+  .inner-depth {
+    background: #E6E9EF;
+    box-shadow: inset 3px 3px 6px #c4c6cc, inset -3px -3px 6px #ffffff;
+    border-radius: 24px;
+  }
+  .shine-btn {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f3a03c, #c87c0a);
+    border: none;
+    transition: transform 0.1s ease, box-shadow 0.3s ease;
+    box-shadow: 6px 6px 12px #c4c6cc, -6px -6px 12px #ffffff;
+  }
+  .shine-btn:active {
+    transform: translateY(2px) scale(0.98);
+    box-shadow: 2px 2px 5px #c4c6cc, -2px -2px 5px #ffffff;
+  }
+  .shine-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 70%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-45deg);
+    transition: left 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .shine-btn:hover::before {
+    left: 150%;
+  }
+
+  /* --- Global Neumorphic Scrollbars --- */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9; /* slate-100 */
+    border-radius: 12px;
+    box-shadow: inset 2px 2px 4px #cbd5e1, inset -2px -2px 4px #ffffff;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1; /* slate-300 */
+    border-radius: 12px;
+    border: 2px solid #f1f5f9; /* Creates a nice padded effect */
+    transition: background 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #d97706; /* gamboge-600 */
+  }
+
+  /* Firefox compatibility */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+}
