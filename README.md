@@ -79,8 +79,8 @@ Before you begin, ensure the following are installed on your machine:
 Clone the repository and install all dependencies from the monorepo root.
 
 ```bash
-git clone <repository-url>
-cd idp-platform
+git clone https://github.com/KUKIL04/KarmaSetu.git
+cd KarmaSetu
 pnpm install
 ```
 
@@ -93,7 +93,7 @@ Create environment files for both the backend and frontend applications.
 ### Backend (`apps/backend/.env`)
 
 ```env
-PORT=5000
+PORT=3333
 DATABASE_URL=postgres://postgres:password@localhost:5432/idp_db
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your_super_secret_jwt_key
@@ -102,7 +102,7 @@ JWT_SECRET=your_super_secret_jwt_key
 ### Frontend (`apps/frontend/.env`)
 
 ```env
-VITE_API_URL=http://localhost:5000/api/v1
+VITE_API_URL=http://localhost:3333/api/v1
 ```
 
 ---
@@ -132,15 +132,15 @@ docker-compose up -d
 From the repository root, start both the frontend and backend development servers.
 
 ```bash
-pnpm dev
+pnpm run dev
 ```
 
 Once started:
 
 | Service | URL |
 |---------|-----|
-| **Frontend (React + Vite)** | http://localhost:5173 |
-| **Backend (Express API)** | http://localhost:5000 |
+| **Frontend (React + Vite)** | http://localhost:3000 |
+| **Backend (Express API)** | http://localhost:3333 |
 
 ---
 
