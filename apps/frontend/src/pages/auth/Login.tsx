@@ -23,7 +23,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       const response = await AuthAPI.login(formData.email, formData.password, formData.tenantId);
-      login(response.accessToken, response.user);
+      login(response.accessToken, response.refreshToken, response.user);
       navigate(location.state?.from?.pathname || '/', { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid credentials or Workspace ID');

@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { AuthenticatedRequest } from '../middlewares/auth.js';
+import { redisClient } from '../db/redis.js';
 
 export class AdminController {
   // Generate Invite Links
@@ -23,7 +24,7 @@ export class AdminController {
 
       await QueryService.createInvitation(tenantId, email, tokenHash, invitedBy, expiresAt);
 
-      const mockInviteLink = `http://localhost:3000/signup?token=${rawToken}`;
+      const mockInviteLink = `http://localhost:3000/register?token=${rawToken}`;
 
       await QueryService.logEvent(
         tenantId,
@@ -257,7 +258,15 @@ export class AdminController {
       
       if (!tenantId) return res.status(400).json({ error: 'Tenant context lost' });
 
-      await QueryService.revokeSession(tenantId, tokenId as string);
+      // 1. Revoke the long-lived refresh token in PostgreSQL
+      const revokedSession = await QueryService.revokeSession(tenantId, tokenId as string);
+
+      // 2. Blacklist the user in Redis to instantly kill any active Access Tokens
+      if (revokedSession && revokedSession.user_id) {
+        // Set expiry to 15 minutes (900 seconds) so Redis cleans up automatically
+        await redisClient.setEx(`bl:user:${revokedSession.user_id}`, 900, 'revoked');
+      }
+
       return res.json({ success: true, message: 'Session terminated successfully' });
     } catch (err) {
       next(err);

@@ -112,7 +112,8 @@ export default function TenantOnboarding() {
   // --- REGISTRATION FORM VIEW ---
   return (
     <AuthLayout>
-      <div className="max-w-4xl mx-auto">
+      {/* Upgraded from max-w-4xl to max-w-6xl for better breathing room */}
+      <div className="max-w-6xl mx-auto w-full">
         
         <div className="mb-8 text-center">
           <h2 className="text-xl font-bold text-slate-700">Provision Organization</h2>
@@ -125,7 +126,7 @@ export default function TenantOnboarding() {
           </div>
         )}
 
-        <div className="inner-depth p-6 sm:p-10">
+        <div className="inner-depth p-6 sm:p-10 lg:p-12">
           <form onSubmit={handleSubmit} className="space-y-10">
             
             {/* Section 1: Organization Details */}
@@ -135,7 +136,7 @@ export default function TenantOnboarding() {
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-widest">Organization Details</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <InputField label="Company Name" name="companyName" value={formData.companyName} onChange={handleChange} required icon={<Building2 />} />
                 <InputField label="Custom Domain (Optional)" name="customDomain" placeholder="e.g. yourcompany.com" value={formData.customDomain} onChange={handleChange} icon={<Globe />} />
               </div>
@@ -175,7 +176,8 @@ export default function TenantOnboarding() {
                 <h3 className="text-sm font-bold text-slate-700 uppercase tracking-widest">Master Administrator</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {/* Changed md:grid-cols-3 to lg:grid-cols-3 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <InputField label="First Name" name="adminFirstName" value={formData.adminFirstName} onChange={handleChange} required />
                 <InputField label="Last Name" name="adminLastName" value={formData.adminLastName} onChange={handleChange} required />
                 <InputField asSelect label="Sex" name="adminGender" value={formData.adminGender} onChange={handleChange} required>
@@ -209,13 +211,15 @@ export default function TenantOnboarding() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {/* Changed md:grid-cols-3 to lg:grid-cols-3 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                 <InputField label="Date Of Birth" type="date" name="adminDob" value={formData.adminDob} onChange={handleChange} required icon={<Calendar />} />
                 <InputField label="Password" type="password" name="adminPassword" value={formData.adminPassword} onChange={handleChange} required icon={<Lock />} />
                 <InputField label="Confirm Password" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required icon={<Lock />} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Changed md:grid-cols-3 to lg:grid-cols-3 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <InputField asSelect label="Mother Tongue" name="adminMotherTongue" value={formData.adminMotherTongue} onChange={handleChange} required>
                   <option value="English">English</option>
                   <option value="Hindi">Hindi</option>

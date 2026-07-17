@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
+import { redisClient } from '../db/redis.js';
 
 export class AuthController {
   // Login Endpoint
@@ -21,6 +22,9 @@ export class AuthController {
       if (!match) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
+
+      // Clear any existing security lockouts for this user upon a valid login
+      await redisClient.del(`bl:user:${user.id}`);
 
       // Generate credentials
       const accessToken = CryptoService.generateAccessToken({
@@ -163,6 +167,50 @@ export class AuthController {
 
       // Securely return the email tied strictly to this database record
       return res.json({ email: invite.email });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Handle Token Refresh
+  static async refreshToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(401).json({ error: 'Refresh token is required' });
+      }
+
+      // Hash the incoming raw token to compare against the database record[cite: 13]
+      const hashedRefresh = CryptoService.hashToken(refreshToken);
+      
+      // Look up the token ensuring it hasn't been manually revoked[cite: 12]
+      const tokenRecord = await QueryService.getRefreshToken(hashedRefresh);
+
+      if (!tokenRecord) {
+        return res.status(401).json({ error: 'Invalid or revoked refresh token' });
+      }
+
+      // Manually verify the token hasn't expired yet
+      if (new Date(tokenRecord.expires_at) < new Date()) {
+        return res.status(401).json({ error: 'Refresh token has expired' });
+      }
+
+      // Re-verify the user's status using strict multi-tenant validation[cite: 12]
+      const user = await QueryService.getUserByIdAndTenant(tokenRecord.user_id, tokenRecord.tenant_id);
+      
+      if (!user || user.status !== 'ACTIVE') {
+        return res.status(401).json({ error: 'User account is inactive or disabled' });
+      }
+
+      // Generate a fresh Access Token using your 15m expiration policy[cite: 13]
+      const newAccessToken = CryptoService.generateAccessToken({
+        userId: user.id,
+        tenantId: user.tenant_id,
+        isAdmin: user.is_tenant_admin,
+      });
+
+      return res.json({ accessToken: newAccessToken });
     } catch (err) {
       next(err);
     }

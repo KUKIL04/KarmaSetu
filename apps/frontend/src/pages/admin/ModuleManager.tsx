@@ -12,7 +12,6 @@ export default function ModuleManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  // 1. Fetch modules on load
   useEffect(() => {
     const fetchModules = async () => {
       try {
@@ -34,13 +33,11 @@ export default function ModuleManager() {
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
   };
 
-  // 2. Fetch users when a module is selected
   const handleSelectModule = async (mod: any) => {
     setSelectedModule(mod);
     setIsLoadingUsers(true);
     setSearchQuery('');
     try {
-      // Stubbed backend call - will hit our new endpoint
       const users = await AdminAPI.getModuleUsers(mod.id).catch(() => []);
       setAuthorizedUsers(Array.isArray(users) ? users : []);
     } catch (err) {
@@ -50,13 +47,11 @@ export default function ModuleManager() {
     }
   };
 
-  // 3. Revoke Access Action
   const handleRevokeAccess = async (userId: string) => {
     if (!selectedModule) return;
     try {
       await AdminAPI.revokeModuleAccess(userId, selectedModule.id);
       notify('success', 'Access revoked successfully.');
-      // Remove from local state immediately for snappy UI
       setAuthorizedUsers(prev => prev.filter(u => u.id !== userId));
     } catch (err: any) {
       notify('error', err.response?.data?.error || 'Failed to revoke access');
@@ -105,16 +100,24 @@ export default function ModuleManager() {
                 <div 
                   key={mod.id} 
                   onClick={() => handleSelectModule(mod)}
-                  className={`p-5 rounded-3xl cursor-pointer transition-all ${
+                  className={`group relative p-5 rounded-3xl cursor-pointer transition-all duration-200 ease-in-out ${
                     selectedModule?.id === mod.id 
-                      ? 'inner-depth border-2 border-gamboge-500/50' 
-                      : 'embossed-card hover:-translate-y-1'
+                      ? 'inner-depth border border-slate-200/50 bg-slate-200' 
+                      : 'bg-slate-100 border border-slate-200/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-100/60 hover:border-slate-300'
                   }`}
                 >
-                  <h4 className={`font-extrabold tracking-tight text-lg ${selectedModule?.id === mod.id ? 'text-gamboge-700' : 'text-slate-700'}`}>
-                    {mod.name}
-                  </h4>
-                  <p className="text-sm text-slate-500 font-medium mt-1 truncate">{mod.description}</p>
+                  {/* Elegant Active Indicator Bar */}
+                  {selectedModule?.id === mod.id && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 bg-gamboge-500 rounded-r-full shadow-[0_0_8px_rgba(199,146,62,0.4)]"></div>
+                  )}
+                  
+                  {/* Subtle Text Slide on Active */}
+                  <div className={`transition-all duration-200 ${selectedModule?.id === mod.id ? 'pl-2' : ''}`}>
+                    <h4 className={`font-extrabold tracking-tight text-lg transition-colors ${selectedModule?.id === mod.id ? 'text-gamboge-700' : 'text-slate-700 group-hover:text-slate-900'}`}>
+                      {mod.name}
+                    </h4>
+                    <p className="text-sm text-slate-500 font-medium mt-1 truncate">{mod.description}</p>
+                  </div>
                 </div>
               ))}
             </div>

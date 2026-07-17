@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, type ReactNode } from 'react';
 
 // Define the User shape matching our raw SQL backend
 export interface User {
@@ -14,7 +14,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, userData: User) => void;
+  // Upgraded signature to accept the refresh token
+  login: (accessToken: string, refreshToken: string, userData: User) => void;
   logout: () => void;
 }
 
@@ -36,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch (error) {
           console.error('Failed to parse stored user data');
           localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken'); // Clear refresh token on parse fail
           localStorage.removeItem('user');
         }
       }
@@ -45,14 +47,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initializeAuth();
   }, []);
 
-  const login = (token: string, userData: User) => {
-    localStorage.setItem('accessToken', token);
+  // Now handles both tokens
+  const login = (accessToken: string, refreshToken: string, userData: User) => {
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken); 
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const logout = () => {
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken'); // Wipe the refresh token on manual logout
     localStorage.removeItem('user');
     setUser(null);
     window.location.href = '/login'; // Force a hard redirect to clear memory

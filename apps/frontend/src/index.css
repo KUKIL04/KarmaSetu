@@ -8,7 +8,7 @@
   }
   .embossed-card {
     background: linear-gradient(135deg, #f0f2f5, #e0e3eb);
-    box-shadow: 20px 20px 40px rgba(15, 23, 42, 0.5), -15px -15px 35px rgba(255, 255, 255, 0.1);
+    box-shadow: 10px 10px 40px rgba(15, 23, 42, 0.5), -15px -15px 35px rgba(255, 255, 255, 0.1);
     border-radius: 32px;
     border: 1px solid rgba(255, 255, 255, 0.4);
     position: relative;

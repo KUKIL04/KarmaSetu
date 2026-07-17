@@ -70,14 +70,16 @@ export default function SecurityControl() {
             <Loader2 className="w-6 h-6 animate-spin mr-3" /> Scanning Network...
           </div>
         ) : (
-          <div className="inner-depth p-4 rounded-3xl overflow-x-auto">
+          /* Applied max-h-[600px] and vertical scrolling here */
+          <div className="inner-depth p-1 rounded-3xl overflow-x-auto max-h-[600px] overflow-y-auto relative bg-slate-50/50">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-300 text-slate-500 text-xs uppercase tracking-widest">
-                  <th className="py-4 px-6 font-bold">User</th>
-                  <th className="py-4 px-6 font-bold">Session Created</th>
-                  <th className="py-4 px-6 font-bold">Token Expiry</th>
-                  <th className="py-4 px-6 font-bold text-right">Kill Switch</th>
+              {/* Made the header sticky with a frosted glass effect */}
+              <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
+                <tr className="text-slate-500 text-xs uppercase tracking-widest">
+                  <th className="py-4 px-6 font-bold border-b border-slate-300">User</th>
+                  <th className="py-4 px-6 font-bold border-b border-slate-300">Session Created</th>
+                  <th className="py-4 px-6 font-bold border-b border-slate-300">Token Expiry</th>
+                  <th className="py-4 px-6 font-bold border-b border-slate-300 text-right">Kill Switch</th>
                 </tr>
               </thead>
               <tbody>
@@ -87,7 +89,7 @@ export default function SecurityControl() {
                   </tr>
                 ) : (
                   sessions.map(session => (
-                    <tr key={session.id} className="border-b border-slate-300/50 hover:bg-slate-50 transition-colors">
+                    <tr key={session.id} className="border-b border-slate-300/50 hover:bg-slate-100 transition-colors">
                       <td className="py-5 px-6">
                         <div className="font-bold text-slate-700">{session.first_name} {session.last_name}</div>
                         <div className="text-xs text-slate-500 font-medium mt-1">{session.email}</div>
