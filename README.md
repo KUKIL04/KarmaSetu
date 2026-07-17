@@ -47,6 +47,7 @@ idp-platform/
 │   └── shared/          # Shared TypeScript interfaces, schemas, and utilities
 ├── docker-compose.yml   # Container orchestration for PostgreSQL and Redis
 └── pnpm-workspace.yaml  # Workspace configuration
+```
 
 ## 🏗️ Architecture Highlights
 
@@ -142,30 +143,6 @@ Once started:
 | **Backend (Express API)** | http://localhost:5000 |
 
 ---
-
-## 📂 Project Structure (Relevant)
-
-```text
-idp-platform/
-├── apps/
-│   ├── backend/
-│   │   ├── src/
-│   │   │   ├── controllers/
-│   │   │   ├── services/
-│   │   │   │   ├── query.service.ts
-│   │   │   │   └── crypto.service.ts
-│   │   │   └── db/
-│   │   │       └── schema.sql
-│   │   └── .env
-│   │
-│   └── frontend/
-│       └── .env
-│
-├── packages/
-│   └── shared/
-│
-└── docker-compose.yml
-```
 
 ## 🎨 Design System
 
