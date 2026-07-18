@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AdminAPI } from '../../api/admin.api';
 import { InputField } from '../../components/ui/InputField';
-import { Building2, Globe, Palette, Image as ImageIcon, Save, Loader2, Settings } from 'lucide-react';
+import { Building2, Globe, Palette, Save, Loader2, Settings, UploadCloud, CheckCircle } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 
 export default function WorkspaceSettings() {
   const [formData, setFormData] = useState({
@@ -13,11 +14,33 @@ export default function WorkspaceSettings() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  // Tiny helper to slightly darken a hex color for hover states and gradients
+  const adjustColor = (color: string, amount: number) => {
+    return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+  }
+
+  // Dynamically inject the theme colors into the CSS root when the color picker changes
+  useEffect(() => {
+    if (formData.themeColor) {
+      const root = document.documentElement;
+      const baseColor = formData.themeColor;
+      
+      // Set the main accent (500)
+      root.style.setProperty('--theme-500', baseColor);
+      
+      // Auto-generate lighter and darker shades for gradients and hovers!
+      root.style.setProperty('--theme-400', adjustColor(baseColor, 20));
+      root.style.setProperty('--theme-600', adjustColor(baseColor, -20));
+      root.style.setProperty('--theme-700', adjustColor(baseColor, -40));
+    }
+  }, [formData.themeColor]);
 
   const fetchSettings = async () => {
     try {
@@ -45,6 +68,32 @@ export default function WorkspaceSettings() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  // Drag and Drop Handler[cite: 40]
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const res = await AdminAPI.uploadLogo(file);
+      if (res.logoUrl) {
+        setFormData(prev => ({ ...prev, logoUrl: res.logoUrl }));
+        notify('success', 'Logo uploaded successfully. Remember to save your settings.');
+      }
+    } catch (err: any) {
+      notify('error', err.response?.data?.error || 'Failed to upload logo');
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.svg'] },
+    maxFiles: 1,
+    maxSize: 5 * 1024 * 1024 // 5MB
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,14 +156,43 @@ export default function WorkspaceSettings() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <InputField 
-                label="Logo URL" 
-                name="logoUrl" 
-                placeholder="https://..." 
-                value={formData.logoUrl} 
-                onChange={handleChange} 
-                icon={<ImageIcon />} 
-              />
+              
+              {/* File Upload Dropzone[cite: 40] */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">
+                  Corporate Logo
+                </label>
+                <div 
+                  {...getRootProps()} 
+                  className={`inner-depth p-6 rounded-3xl flex flex-col items-center justify-center text-center cursor-pointer transition-all border-2 ${
+                    isDragActive ? 'border-gamboge-500 bg-gamboge-50/50' : 'border-transparent hover:bg-slate-100'
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  
+                  {isUploading ? (
+                    <Loader2 className="w-8 h-8 text-gamboge-500 animate-spin mb-2" />
+                  ) : formData.logoUrl ? (
+                    <div className="relative group">
+                      <img 
+                        src={formData.logoUrl.startsWith('http') ? formData.logoUrl : `${import.meta.env.VITE_API_URL?.replace('/api/v1', '')}${formData.logoUrl}`} 
+                        alt="Logo Preview" 
+                        className="h-16 object-contain mb-2 rounded-lg"
+                      />
+                      <div className="absolute inset-0 bg-slate-900/50 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <span className="text-white text-[10px] font-bold uppercase tracking-widest">Replace</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <UploadCloud className={`w-10 h-10 mb-3 ${isDragActive ? 'text-gamboge-600' : 'text-slate-400'}`} />
+                  )}
+                  
+                  <p className="text-sm font-bold text-slate-700">
+                    {isDragActive ? 'Drop image here...' : formData.logoUrl ? 'Update Logo' : 'Drag & Drop Logo'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-1">PNG, JPG, SVG (Max 5MB)</p>
+                </div>
+              </div>
               
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">
@@ -129,7 +207,7 @@ export default function WorkspaceSettings() {
                     name="themeColor" 
                     value={formData.themeColor} 
                     onChange={handleChange} 
-                    className="h-[52px] w-16 rounded-2xl cursor-pointer embossed-input p-1.5 pl-12"
+                    className="h-[52px] w-16 rounded-2xl cursor-pointer embossed-input p-1.5 pl-8"
                   />
                   <input 
                     type="text" 

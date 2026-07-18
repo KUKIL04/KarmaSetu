@@ -3,6 +3,8 @@ import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { AuthenticatedRequest } from '../middlewares/auth.js';
 import { redisClient } from '../db/redis.js';
+import fs from 'fs';
+import path from 'path';
 
 export class AdminController {
   // Generate Invite Links
@@ -207,6 +209,58 @@ export class AdminController {
     }
   }
 
+  static async getRoleUsers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const tenantId = req.user?.tenantId;
+      const roleId = req.params.roleId as string;
+      
+      if (!tenantId) return res.status(400).json({ error: 'Tenant context lost' });
+
+      const users = await QueryService.getRoleUsers(tenantId, roleId);
+      return res.json(users);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Bulk grant a role to multiple users
+  static async grantBulkRoleAccess(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const adminId = req.user?.userId;
+      const { roleId, userIds } = req.body;
+
+      if (!adminId) return res.status(400).json({ error: 'Context invalid' });
+      if (!roleId || !Array.isArray(userIds)) {
+        return res.status(400).json({ error: 'Role ID and array of User IDs are required' });
+      }
+
+      for (const userId of userIds) {
+        await QueryService.assignUserRole(userId, roleId, adminId);
+      }
+
+      return res.json({ success: true, message: `Role granted to ${userIds.length} personnel.` });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Revoke a role from a single user
+  static async revokeRoleAccess(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const tenantId = req.user?.tenantId;
+      const userId = req.params.userId as string;
+      const roleId = req.params.roleId as string;
+
+      if (!tenantId) return res.status(400).json({ error: 'Context invalid' });
+
+      await QueryService.revokeUserRole(userId, roleId);
+
+      return res.json({ success: true, message: 'Role revoked successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   // --- MODULE ACCESS MAP ENDPOINTS ---
 
   static async getModuleUsers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -232,6 +286,48 @@ export class AdminController {
 
       await QueryService.revokeModuleAccess(tenantId, userId as string, moduleId as string);
       return res.json({ success: true, message: 'Access revoked successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Bulk grant module access to multiple users via the Modal
+  static async grantBulkModuleAccess(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const adminId = req.user?.userId;
+      const { moduleId, userIds, accessLevel = 'READ' } = req.body;
+
+      if (!adminId) return res.status(400).json({ error: 'Context invalid' });
+      if (!moduleId || !Array.isArray(userIds)) {
+        return res.status(400).json({ error: 'Module ID and array of User IDs are required' });
+      }
+
+      for (const userId of userIds) {
+        await QueryService.assignUserModule(userId, moduleId, adminId, accessLevel);
+      }
+
+      return res.json({ success: true, message: `Access granted to ${userIds.length} personnel.` });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Update a single user's Read/Write access level from the table dropdown
+  static async updateModuleAccessLevel(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const adminId = req.user?.userId;
+      const moduleId = req.params.moduleId as string;
+      const userId = req.params.userId as string;
+      const { accessLevel } = req.body;
+
+      if (!adminId) return res.status(400).json({ error: 'Context invalid' });
+      if (!['READ', 'WRITE'].includes(accessLevel)) {
+        return res.status(400).json({ error: 'Invalid access level' });
+      }
+
+      await QueryService.assignUserModule(userId, moduleId, adminId, accessLevel);
+
+      return res.json({ success: true, message: 'Access level updated' });
     } catch (err) {
       next(err);
     }
@@ -321,14 +417,60 @@ export class AdminController {
     }
   }
 
+  // 1. STAGING PHASE: Just save the file to disk and return the URL
+  static async uploadWorkspaceLogo(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+
+      // Generate the public URL path that React will use for the live preview
+      const logoUrl = `/uploads/${req.file.filename}`;
+
+      // Notice: We are NOT touching the database here anymore!
+      return res.json({ 
+        success: true, 
+        message: 'Logo staged for preview',
+        logoUrl 
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // 2. COMMIT PHASE: Save all settings and clean up old files
   static async updateTenantSettings(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user?.tenantId;
       if (!tenantId) return res.status(400).json({ error: 'Tenant context lost' });
-      if (!req.body.name) return res.status(400).json({ error: 'Company Name is required' });
+      
+      const { name, customDomain, logoUrl, themeColor } = req.body;
+      if (!name) return res.status(400).json({ error: 'Company Name is required' });
 
-      const updatedSettings = await QueryService.updateTenantSettings(tenantId, req.body);
-      return res.json({ success: true, message: 'Workspace settings updated', settings: updatedSettings });
+      // Fetch current settings to check if the logo was actually replaced
+      const currentTenant = await QueryService.getTenantSettings(tenantId);
+
+      // If the database has an old logo, and it doesn't match the newly submitted logoUrl...
+      if (currentTenant && currentTenant.logo_url && currentTenant.logo_url !== logoUrl) {
+        // Obliterate the old image from the hard drive
+        if (currentTenant.logo_url.startsWith('/uploads/')) {
+          const oldFilePath = path.join(process.cwd(), 'public', currentTenant.logo_url);
+          
+          if (fs.existsSync(oldFilePath)) {
+            fs.unlinkSync(oldFilePath);
+          }
+        }
+      }
+
+      // Commit the final state to PostgreSQL
+      const updatedSettings = await QueryService.updateTenantSettings(tenantId, {
+        name,
+        customDomain,
+        logoUrl,
+        themeColor
+      });
+
+      return res.json({ success: true, message: 'Workspace settings committed', settings: updatedSettings });
     } catch (err) {
       next(err);
     }

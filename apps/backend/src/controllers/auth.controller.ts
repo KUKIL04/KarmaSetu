@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { redisClient } from '../db/redis.js';
+import { pool } from '../db/index.js';
 
 export class AuthController {
   // Login Endpoint
@@ -127,6 +128,31 @@ export class AuthController {
     }
   }
 
+  // Initiate Password Reset (Fail Fast on Invalid Emails)
+  static async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      // SECURITY CHECK: Verify the user exists in the database FIRST
+      const userCheck = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      
+      if (userCheck.rows.length === 0) {
+        // Fail fast: Prevent OTP dispatch and alert the frontend immediately
+        return res.status(404).json({ error: 'No active account found with this corporate email.' });
+      }
+
+      // TODO: We will plug the Nodemailer OTP dispatch here shortly!
+      
+      return res.json({ success: true, message: 'OTP dispatched securely.' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   // Handle Password Reset
   static async resetPassword(req: Request, res: Response, next: NextFunction) {
     try {
@@ -211,6 +237,25 @@ export class AuthController {
       });
 
       return res.json({ accessToken: newAccessToken });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Handle User Logout
+  static async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (refreshToken) {
+        // Hash the token exactly as it is stored in the database
+        const hashedRefresh = CryptoService.hashToken(refreshToken);
+        
+        // Mark it as revoked so it drops off the Active Sessions UI
+        await QueryService.revokeRefreshToken(hashedRefresh);
+      }
+
+      return res.json({ success: true, message: 'Session terminated successfully' });
     } catch (err) {
       next(err);
     }

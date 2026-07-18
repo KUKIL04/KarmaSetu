@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { initializeDatabase } from './db/index.js';
 import { initializeRedis } from './db/redis.js';
 import { errorHandler } from './middlewares/error.js';
@@ -20,6 +21,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3333;
 
+app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
 app.use('/api/v1/otp', otpRouter);
 app.use('/api/v1/tenant', tenantRouter);
 app.use('/api/v1/auth', authRouter);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller.js';
 import { requireAuth, requireAdmin } from '../middlewares/auth.js';
+import { uploadLogo } from '../middlewares/upload.js';
 
 const router = Router();
 
@@ -41,6 +42,23 @@ router.post('/roles',
   (req, res, next) => AdminController.createRole(req as any, res, next)
 );
 
+router.get('/roles/:roleId/users', 
+  (req, res, next) => requireAuth(req, res, next), 
+  (req, res, next) => AdminController.getRoleUsers(req as any, res, next)
+);
+
+router.post('/roles/bulk-grant', 
+  (req, res, next) => requireAuth(req, res, next), 
+  (req, res, next) => requireAdmin(req, res, next), 
+  (req, res, next) => AdminController.grantBulkRoleAccess(req as any, res, next)
+);
+
+router.delete('/users/:userId/roles/:roleId', 
+  (req, res, next) => requireAuth(req, res, next), 
+  (req, res, next) => requireAdmin(req, res, next), 
+  (req, res, next) => AdminController.revokeRoleAccess(req as any, res, next)
+);
+
 router.get('/permissions', 
   (req, res, next) => requireAuth(req, res, next), 
   (req, res, next) => AdminController.getPermissions(req as any, res, next)
@@ -55,6 +73,19 @@ router.get('/modules/:moduleId/users',
 router.delete('/users/:userId/modules/:moduleId', 
   (req, res, next) => requireAuth(req, res, next), 
   (req, res, next) => AdminController.revokeModuleAccess(req as any, res, next)
+);
+
+// -- Module Bulk & Read/Write Access Routes --
+router.post('/modules/bulk-grant', 
+  (req, res, next) => requireAuth(req, res, next), 
+  (req, res, next) => requireAdmin(req, res, next), 
+  (req, res, next) => AdminController.grantBulkModuleAccess(req as any, res, next)
+);
+
+router.put('/modules/:moduleId/users/:userId/access', 
+  (req, res, next) => requireAuth(req, res, next), 
+  (req, res, next) => requireAdmin(req, res, next), 
+  (req, res, next) => AdminController.updateModuleAccessLevel(req as any, res, next)
 );
 
 // -- Security & Session Routes --
@@ -88,6 +119,12 @@ router.get('/settings',
 router.put('/settings', 
   (req, res, next) => requireAuth(req, res, next), 
   (req, res, next) => AdminController.updateTenantSettings(req as any, res, next)
+);
+
+router.post('/settings/logo', 
+  (req, res, next) => requireAuth(req, res, next),
+  uploadLogo.single('logo'), // 'logo' must match the FormData field name from React
+  (req, res, next) => AdminController.uploadWorkspaceLogo(req as any, res, next)
 );
 
 export default router;

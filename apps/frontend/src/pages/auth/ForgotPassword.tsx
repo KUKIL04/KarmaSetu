@@ -27,7 +27,8 @@ export default function ForgotPassword() {
 
   return (
     <AuthLayout>
-      <div className="max-w-[540px] mx-auto">
+      {/* Added w-full here to prevent squeezing */}
+      <div className="max-w-[540px] w-full mx-auto">
         <div className="mb-8 text-center">
             <h2 className="text-xl font-bold text-slate-700">Account Recovery</h2>
             <p className="text-sm text-slate-500 mt-1.5">Securely request a matrix reset link.</p>

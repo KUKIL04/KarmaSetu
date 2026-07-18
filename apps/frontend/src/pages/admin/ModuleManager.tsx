@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminAPI } from '../../api/admin.api';
-import { LayoutGrid, Users, Loader2, ShieldMinus, Search } from 'lucide-react';
+import { LayoutGrid, Users, Loader2, ShieldMinus, Search, Plus, X, CheckSquare } from 'lucide-react';
 
 export default function ModuleManager() {
   const [modules, setModules] = useState<any[]>([]);
@@ -11,6 +11,12 @@ export default function ModuleManager() {
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // Modal States
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
+  const [modalSearchQuery, setModalSearchQuery] = useState('');
+  const [unassignedUsers, setUnassignedUsers] = useState<any[]>([]);
+  const [selectedToGrant, setSelectedToGrant] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchModules = async () => {
@@ -39,7 +45,13 @@ export default function ModuleManager() {
     setSearchQuery('');
     try {
       const users = await AdminAPI.getModuleUsers(mod.id).catch(() => []);
-      setAuthorizedUsers(Array.isArray(users) ? users : []);
+      const authUsers = Array.isArray(users) ? users : [];
+      setAuthorizedUsers(authUsers);
+
+      // Fetch all users to determine who is unassigned
+      const allUsers = await AdminAPI.getUsers().catch(() => []);
+      const authIds = authUsers.map(u => u.id);
+      setUnassignedUsers(Array.isArray(allUsers) ? allUsers.filter(u => !authIds.includes(u.id)) : []);
     } catch (err) {
       notify('error', `Failed to fetch users for ${mod.name}`);
     } finally {
@@ -58,12 +70,40 @@ export default function ModuleManager() {
     }
   };
 
+  const handleUpdateAccessLevel = async (userId: string, newLevel: string) => {
+    if (!selectedModule) return;
+    try {
+      await AdminAPI.updateModuleAccessLevel(selectedModule.id, userId, newLevel as 'READ'|'WRITE');
+      setAuthorizedUsers(prev => prev.map(u => u.id === userId ? { ...u, access_level: newLevel } : u));
+      notify('success', `Access updated to ${newLevel}.`);
+    } catch (err: any) {
+      notify('error', 'Failed to update access level.');
+    }
+  };
+
+  const handleConfirmGrant = async () => {
+    if (selectedToGrant.length === 0 || !selectedModule) return;
+    try {
+      await AdminAPI.grantBulkModuleAccess(selectedModule.id, selectedToGrant);
+      notify('success', `Access granted to ${selectedToGrant.length} personnel.`);
+      setIsGrantModalOpen(false);
+      setSelectedToGrant([]);
+      handleSelectModule(selectedModule);
+    } catch (err: any) {
+      notify('error', 'Failed to grant access.');
+    }
+  };
+
   const filteredUsers = authorizedUsers.filter(u => 
     `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredUnassigned = unassignedUsers.filter(u => 
+    `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(modalSearchQuery.toLowerCase())
+  );
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-8 relative">
       <div>
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Module Access Mapping</h1>
         <p className="text-slate-500 mt-2 font-medium">Audit workspace applications and manage authorized personnel.</p>
@@ -102,16 +142,14 @@ export default function ModuleManager() {
                   onClick={() => handleSelectModule(mod)}
                   className={`group relative p-5 rounded-3xl cursor-pointer transition-all duration-200 ease-in-out ${
                     selectedModule?.id === mod.id 
-                      ? 'inner-depth border border-slate-200/50 bg-slate-200' 
-                      : 'bg-slate-100 border border-slate-200/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-100/60 hover:border-slate-300'
+                      ? 'inner-depth border border-slate-200/50 bg-slate-50/50' 
+                      : 'bg-slate-50 border border-slate-200/70 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:bg-slate-100/60 hover:border-slate-300'
                   }`}
                 >
-                  {/* Elegant Active Indicator Bar */}
                   {selectedModule?.id === mod.id && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 bg-gamboge-500 rounded-r-full shadow-[0_0_8px_rgba(199,146,62,0.4)]"></div>
                   )}
                   
-                  {/* Subtle Text Slide on Active */}
                   <div className={`transition-all duration-200 ${selectedModule?.id === mod.id ? 'pl-2' : ''}`}>
                     <h4 className={`font-extrabold tracking-tight text-lg transition-colors ${selectedModule?.id === mod.id ? 'text-gamboge-700' : 'text-slate-700 group-hover:text-slate-900'}`}>
                       {mod.name}
@@ -140,15 +178,23 @@ export default function ModuleManager() {
                   </p>
                 </div>
 
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
-                  <input 
-                    type="text" 
-                    placeholder="Search personnel..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="embossed-input w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none"
-                  />
+                <div className="flex items-center space-x-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Filter directory..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="embossed-input w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => setIsGrantModalOpen(true)}
+                    className="shine-btn py-3 px-6 text-white font-bold rounded-2xl text-xs tracking-widest uppercase flex-shrink-0"
+                  >
+                    Grant Access
+                  </button>
                 </div>
               </div>
 
@@ -160,14 +206,14 @@ export default function ModuleManager() {
                 <div className="flex-1 inner-depth p-4 rounded-3xl overflow-y-auto">
                   {filteredUsers.length === 0 ? (
                     <div className="py-12 text-center text-slate-500 font-medium">
-                      {searchQuery ? 'No personnel match your search.' : 'No users currently have access to this module.'}
+                      {searchQuery ? 'No personnel match your filter.' : 'No users currently have access to this module.'}
                     </div>
                   ) : (
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-300 text-slate-500 text-xs uppercase tracking-widest">
                           <th className="py-4 px-6 font-bold">Employee</th>
-                          <th className="py-4 px-6 font-bold">Contact</th>
+                          <th className="py-4 px-6 font-bold">Permission</th>
                           <th className="py-4 px-6 font-bold text-right">Action</th>
                         </tr>
                       </thead>
@@ -176,8 +222,18 @@ export default function ModuleManager() {
                           <tr key={user.id} className="border-b border-slate-300/50 hover:bg-slate-50 transition-colors">
                             <td className="py-4 px-6">
                               <div className="font-bold text-slate-700">{user.first_name} {user.last_name}</div>
+                              <div className="text-xs text-slate-500 font-medium">{user.email}</div>
                             </td>
-                            <td className="py-4 px-6 text-sm text-slate-500 font-medium">{user.email}</td>
+                            <td className="py-4 px-6">
+                              <select 
+                                value={user.access_level || 'READ'}
+                                onChange={(e) => handleUpdateAccessLevel(user.id, e.target.value)}
+                                className="bg-lightgray border border-slate-300 text-slate-700 rounded-xl text-xs font-bold tracking-widest uppercase p-2 outline-none focus:border-gamboge-500 shadow-inner cursor-pointer"
+                              >
+                                <option value="READ">Read Only</option>
+                                <option value="WRITE">Read / Write</option>
+                              </select>
+                            </td>
                             <td className="py-4 px-6 text-right">
                               <button 
                                 onClick={() => handleRevokeAccess(user.id)}
@@ -205,6 +261,90 @@ export default function ModuleManager() {
           )}
         </div>
       </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* GRANT ACCESS MODAL                                   */}
+      {/* ---------------------------------------------------- */}
+      {isGrantModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="embossed-card p-8 w-full max-w-lg flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800 tracking-tight flex items-center">
+                  <CheckSquare className="w-5 h-5 mr-2 text-gamboge-600" /> Grant Access
+                </h3>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                  Assigning <span className="text-gamboge-700">{selectedModule?.name}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => { setIsGrantModalOpen(false); setSelectedToGrant([]); }}
+                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative mb-4 shrink-0">
+              <Search className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Search unassigned personnel..." 
+                value={modalSearchQuery}
+                onChange={(e) => setModalSearchQuery(e.target.value)}
+                className="embossed-input w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none"
+              />
+            </div>
+
+            <div className="inner-depth p-2 rounded-3xl flex-1 overflow-y-auto mb-6">
+              {filteredUnassigned.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 text-sm font-medium">
+                  {modalSearchQuery ? 'No unassigned users match.' : 'All users already have access.'}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredUnassigned.map(user => (
+                    <label 
+                      key={user.id} 
+                      className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 cursor-pointer transition-colors"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-700 text-sm">{user.first_name} {user.last_name}</div>
+                        <div className="text-xs text-slate-500 font-medium">{user.email}</div>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedToGrant.includes(user.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedToGrant(prev => [...prev, user.id]);
+                          else setSelectedToGrant(prev => prev.filter(id => id !== user.id));
+                        }}
+                        className="w-5 h-5 rounded border-slate-300 text-gamboge-600 focus:ring-gamboge-500 accent-gamboge-600"
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex space-x-4 shrink-0">
+              <button 
+                onClick={() => { setIsGrantModalOpen(false); setSelectedToGrant([]); }}
+                className="flex-1 py-3 text-slate-700 bg-lightgray border border-slate-300 hover:bg-slate-200 shadow-sm font-bold rounded-2xl text-sm tracking-widest uppercase transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmGrant}
+                disabled={selectedToGrant.length === 0}
+                className="flex-1 shine-btn py-3 text-white font-bold rounded-2xl text-sm tracking-widest uppercase disabled:opacity-50"
+              >
+                Grant ({selectedToGrant.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

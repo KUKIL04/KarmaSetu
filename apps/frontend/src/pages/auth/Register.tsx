@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { InputField } from '../../components/ui/InputField';
 import { OtpActionInput } from '../../components/ui/OtpActionInput';
 import { AuthAPI } from '../../api/auth.api';
-import { AlertCircle, Loader2, ShieldCheck, ArrowLeft, Mail, Lock, User, Phone, Globe } from 'lucide-react';
+import { AlertCircle, Loader2, ShieldCheck, ArrowLeft, Mail, Lock, Phone, Calendar } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function Register() {
@@ -18,7 +18,9 @@ export default function Register() {
     securityQ2: 'Who is your favorite player?', securityA2: '',
   });
 
+  const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  
   const [lockedEmail, setLockedEmail] = useState('');
   const [isTokenValid, setIsTokenValid] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +36,10 @@ export default function Register() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => 
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleSendOtp = async (target: string, type: 'EMAIL' | 'PHONE') => await AuthAPI.sendOtp(target, type);
+  const handleSendOtp = async (target: string, type: 'EMAIL' | 'PHONE') => {
+    await AuthAPI.sendOtp(target, type);
+    if (type === 'PHONE') setIsPhoneOtpSent(true);
+  };
 
   const handleVerifyOtp = async (target: string, type: 'EMAIL' | 'PHONE', otp: string) => {
     const response = await AuthAPI.verifyOtp(target, type, otp);
@@ -67,7 +72,7 @@ export default function Register() {
   if (isTokenValid === false || !token) {
     return (
       <AuthLayout>
-        <div className="inner-depth p-8 text-center max-w-[400px] mx-auto">
+        <div className="inner-depth p-8 text-center max-w-[400px] mx-auto w-full">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-slate-700 mb-2">Invalid Link</h2>
           <p className="text-sm text-slate-500 font-medium">This invitation link is invalid or expired.</p>
@@ -77,75 +82,75 @@ export default function Register() {
   }
 
   return (
-    <AuthLayout>
-      <div className="mb-8 text-center">
-          <h2 className="text-xl font-bold text-slate-700">Sign Up</h2>
-          <p className="text-sm text-slate-500 mt-1.5 font-semibold text-gamboge-600 tracking-widest uppercase">-------------------</p>
-      </div>
-
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm text-center font-semibold">
-          {error}
+    <AuthLayout maxWidth="max-w-5xl">
+      <div className="max-full">
+        <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold text-slate-700 tracking-tight">Complete Setup</h2>
+            <p className="text-sm text-slate-500 mt-1.5 font-semibold text-gamboge-600 tracking-widest uppercase">--- Employee Onboarding ---</p>
         </div>
-      )}
 
-      <div className="inner-depth p-6 sm:p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6">
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm text-center font-semibold">
+            {error}
+          </div>
+        )}
+
+        <div className="inner-depth p-6 sm:p-10">
+          <form onSubmit={handleSubmit} className="space-y-8">
             
-            {/* Name */}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Full Name <span className="text-red-500">*</span></label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input type="text" name="firstName" required placeholder="First Name" value={formData.firstName} onChange={handleChange} className="embossed-input w-full px-4 py-3 rounded-xl text-sm text-slate-700 placeholder-slate-400 font-semibold" />
-                <input type="text" name="middleName" placeholder="Middle Name" value={formData.middleName} onChange={handleChange} className="embossed-input w-full px-4 py-3 rounded-xl text-sm text-slate-700 placeholder-slate-400 font-semibold" />
-                <input type="text" name="lastName" required placeholder="Last Name" value={formData.lastName} onChange={handleChange} className="embossed-input w-full px-4 py-3 rounded-xl text-sm text-slate-700 placeholder-slate-400 font-semibold" />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <InputField label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} required />
+              <InputField label="Middle Name (Optional)" name="middleName" value={formData.middleName} onChange={handleChange} />
+              <InputField label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} required />
+
+              <InputField asSelect label="Sex" name="gender" value={formData.gender} onChange={handleChange} required>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </InputField>
+              <InputField label="Date Of Birth" type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} required icon={<Calendar/>} />
+              <InputField asSelect label="Mother Tongue" name="motherTongue" value={formData.motherTongue} onChange={handleChange} required>
+                <option value="Hindi">Hindi</option>
+                <option value="English">English</option>
+                <option value="Assamese">Assamese</option>
+              </InputField>
             </div>
 
-            {/* Demographics */}
-            <InputField asSelect label="Sex" name="gender" value={formData.gender} onChange={handleChange} required>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </InputField>
+            <hr className="border-slate-300/50" />
 
-            <InputField label="Date Of Birth" type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} required />
-
-            <InputField asSelect label="Mother Tongue" name="motherTongue" value={formData.motherTongue} onChange={handleChange} required>
-              <option value="Hindi">Hindi</option>
-              <option value="English">English</option>
-              <option value="Assamese">Assamese</option>
-            </InputField>
-
-            {/* Contact details */}
-            <div className="sm:col-span-2 p-4 border border-slate-300/50 rounded-2xl bg-lightgray/50 space-y-5">
-              <InputField label="Corporate E-mail (Verified)" type="email" value={lockedEmail} disabled icon={<Mail />} className="opacity-70 cursor-not-allowed" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <InputField label="Corporate E-mail" type="email" value={lockedEmail} disabled icon={<Mail />} className="opacity-70 cursor-not-allowed" />
+              <InputField label="Alternate E-mail" type="email" name="alternateEmail" placeholder="backup@domain.com" value={formData.alternateEmail} onChange={handleChange} icon={<Mail />} />
               
-              <div>
-                <InputField label="Mobile No." type="tel" name="mobileNo" value={formData.mobileNo} onChange={handleChange} disabled={isPhoneVerified} required icon={<Phone />} />
+              <div className="p-4 border border-slate-300/50 rounded-2xl bg-lightgray/50 lg:col-span-1">
+                {/* Dynamically disable the mobile input after OTP is sent */}
+                <InputField label="Mobile No." type="tel" name="mobileNo" value={formData.mobileNo} onChange={handleChange} disabled={isPhoneOtpSent || isPhoneVerified} required icon={<Phone />} className={isPhoneOtpSent || isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
                 <div className="mt-3">
                   <OtpActionInput label="Phone Verification" targetValue={formData.mobileNo} onSendOtp={(target) => handleSendOtp(target, 'PHONE')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required />
                 </div>
               </div>
             </div>
 
-            <InputField label="Alternate E-mail" type="email" name="alternateEmail" placeholder="backup@domain.com" value={formData.alternateEmail} onChange={handleChange} icon={<Mail />} />
-            
-            {/* Passwords */}
-            <InputField label="Password" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} required icon={<Lock />} />
-            <InputField label="Confirm Password" type="password" name="confirmPassword" placeholder="••••••••" value={formData.confirmPassword} onChange={handleChange} required icon={<Lock />} />
+            <hr className="border-slate-300/50" />
 
-            {/* Security */}
-            <div className="sm:col-span-2 space-y-4 mt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-2 relative group">
+                 {/* Password fields locked until verification */}
+                 <InputField label="Password" type="password" name="password" placeholder={!isPhoneVerified ? "Verify Mobile No. to unlock" : "••••••••"} value={formData.password} onChange={handleChange} required disabled={!isPhoneVerified} icon={<Lock />} />
+              </div>
+              <div className="lg:col-span-2">
+                 <InputField label="Confirm Password" type="password" name="confirmPassword" placeholder={!isPhoneVerified ? "Verify Mobile No. to unlock" : "••••••••"} value={formData.confirmPassword} onChange={handleChange} required disabled={!isPhoneVerified} icon={<Lock />} />
+              </div>
+
+              <div className="lg:col-span-2 space-y-3">
                 <InputField asSelect label="Security Question 1" name="securityQ1" value={formData.securityQ1} onChange={handleChange} required>
                   <option value="What is your pets name?">What is your pets name?</option>
                   <option value="What city were you born in?">What city were you born in?</option>
                 </InputField>
                 <InputField label="Answer 1" name="securityA1" value={formData.securityA1} onChange={handleChange} required />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              
+              <div className="lg:col-span-2 space-y-3">
                 <InputField asSelect label="Security Question 2" name="securityQ2" value={formData.securityQ2} onChange={handleChange} required>
                   <option value="Who is your favorite player?">Who is your favorite player?</option>
                   <option value="What is your mothers maiden name?">What is your mothers maiden name?</option>
@@ -154,22 +159,21 @@ export default function Register() {
               </div>
             </div>
 
-          </div>
-
-          <div className="pt-4 sm:col-span-2 flex justify-start">
-            <button type="submit" disabled={isLoading || !isPhoneVerified} className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest disabled:opacity-50">
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
-              <span>Complete Registration</span>
-            </button>
-          </div>
-        </form>
-      </div>
-      
-      <div className="mt-8 text-center">
-        <Link to="/login" className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center w-full space-x-1.5 uppercase tracking-widest">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Login</span>
-        </Link>
+            <div className="pt-6 flex justify-end">
+              <button type="submit" disabled={isLoading || !isPhoneVerified} className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest disabled:opacity-50">
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
+                <span>Complete Registration</span>
+              </button>
+            </div>
+          </form>
+        </div>
+        
+        <div className="mt-8 text-center">
+          <Link to="/login" className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center w-full space-x-1.5 uppercase tracking-widest">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Return to Login</span>
+          </Link>
+        </div>
       </div>
     </AuthLayout>
   );

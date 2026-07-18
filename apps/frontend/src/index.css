@@ -3,8 +3,22 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Default Gamboge Scale */
+    --theme-50: #fff9ec;
+    --theme-100: #fdeacc;
+    --theme-200: #fad399;
+    --theme-300: #f6b866;
+    --theme-400: #f3a03c;
+    --theme-500: #e49b0f;
+    --theme-600: #c87c0a;
+    --theme-700: #a65e0b;
+    --theme-800: #854911;
+    --theme-900: #6d3c11;
+  }
+
   body {
-    background-color: #334155;
+    background-color: #554233;
   }
   .embossed-card {
     background: linear-gradient(135deg, #f0f2f5, #e0e3eb);
@@ -17,7 +31,7 @@
     content: '';
     position: absolute;
     inset: 14px;
-    border: 2px solid rgba(228, 155, 15, 0.5); 
+    border: 2px solid var(--theme-500); 
     border-radius: 20px; 
     pointer-events: none;
     z-index: 0;
@@ -46,7 +60,7 @@
   .shine-btn {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(135deg, #f3a03c, #c87c0a);
+    background: linear-gradient(135deg, var(--theme-400), var(--theme-600));
     border: none;
     transition: transform 0.1s ease, box-shadow 0.3s ease;
     box-shadow: 6px 6px 12px #c4c6cc, -6px -6px 12px #ffffff;
@@ -90,7 +104,7 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #d97706; /* gamboge-600 */
+    background: var(--theme-600); /* gamboge-600 */
   }
 
   /* Firefox compatibility */

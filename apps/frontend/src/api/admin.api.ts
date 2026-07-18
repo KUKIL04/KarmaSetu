@@ -95,5 +95,44 @@ export const AdminAPI = {
   updateSettings: async (data: { name: string; customDomain: string; logoUrl: string; themeColor: string }) => {
     const response = await apiClient.put('/admin/settings', data);
     return response.data;
-  }
+  },
+
+  uploadLogo: async (file: File) => {
+    const formData = new FormData();
+    formData.append('logo', file); // 'logo' matches our multer uploadLogo.single('logo') configuration
+
+    const response = await apiClient.post('/admin/settings/logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Override JSON for file uploads
+      },
+    });
+    return response.data; // Returns { success, logoUrl }
+  },
+
+  // -- Module Access Map --
+  grantBulkModuleAccess: async (moduleId: string, userIds: string[], accessLevel: 'READ' | 'WRITE' = 'READ') => {
+    const response = await apiClient.post('/admin/modules/bulk-grant', { moduleId, userIds, accessLevel });
+    return response.data;
+  },
+  
+  updateModuleAccessLevel: async (moduleId: string, userId: string, accessLevel: 'READ' | 'WRITE') => {
+    const response = await apiClient.put(`/admin/modules/${moduleId}/users/${userId}/access`, { accessLevel });
+    return response.data;
+  },
+
+  // -- Role Assignments --
+  getRoleUsers: async (roleId: string) => {
+    const response = await apiClient.get(`/admin/roles/${roleId}/users`);
+    return response.data;
+  },
+
+  grantBulkRoleAccess: async (roleId: string, userIds: string[]) => {
+    const response = await apiClient.post('/admin/roles/bulk-grant', { roleId, userIds });
+    return response.data;
+  },
+
+  revokeRoleAccess: async (userId: string, roleId: string) => {
+    const response = await apiClient.delete(`/admin/users/${userId}/roles/${roleId}`);
+    return response.data;
+  },
 };

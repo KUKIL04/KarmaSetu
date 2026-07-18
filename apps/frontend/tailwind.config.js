@@ -8,8 +8,8 @@ export default {
     extend: {
       colors: {
         gamboge: {
-          50: '#fff9ec', 100: '#fdeacc', 200: '#fad399', 300: '#f6b866', 400: '#f3a03c', 
-          500: '#e49b0f', 600: '#c87c0a', 700: '#a65e0b', 800: '#854911', 900: '#6d3c11',
+          50: 'var(--theme-50)', 100: 'var(--theme-100)', 200: 'var(--theme-200)', 300: 'var(--theme-300)', 400: 'var(--theme-400)', 
+          500: 'var(--theme-500)', 600: 'var(--theme-600)', 700: 'var(--theme-700)', 800: 'var(--theme-800)', 900: 'var(--theme-900)',
         },
         lightgray: '#E6E9EF',
         slate: {

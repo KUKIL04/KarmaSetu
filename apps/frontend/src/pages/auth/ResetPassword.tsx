@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { InputField } from '../../components/ui/InputField';
-import { OtpActionInput } from '../../components/ui/OtpActionInput';
 import { AuthAPI } from '../../api/auth.api';
-import { Loader2, Lock, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Loader2, Lock, ArrowLeft, CheckCircle2, KeyRound } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function ResetPassword() {
@@ -13,8 +12,11 @@ export default function ResetPassword() {
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // OTP Verification States
   const [currentOtp, setCurrentOtp] = useState('');
   const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,16 +26,20 @@ export default function ResetPassword() {
     if (!targetEmail) setError('No email provided. Return to forgot password.');
   }, [targetEmail]);
 
-  const handleSendOtp = async (target: string) => await AuthAPI.forgotPassword(target);
-
-  const handleVerifyOtp = async (target: string, otp: string) => {
-    const response = await AuthAPI.verifyOtp(target, 'EMAIL', otp);
-    if (response.success) {
-      setIsOtpVerified(true);
-      setCurrentOtp(otp);
-      return true;
+  const handleVerifyOtp = async () => {
+    if (currentOtp.length < 4) return;
+    setIsVerifying(true);
+    setError('');
+    try {
+      const response = await AuthAPI.verifyOtp(targetEmail, 'EMAIL', currentOtp);
+      if (response.success) {
+        setIsOtpVerified(true);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Invalid or expired code.');
+    } finally {
+      setIsVerifying(false);
     }
-    return false;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,7 +50,7 @@ export default function ResetPassword() {
       return;
     }
     if (!isOtpVerified) {
-      setError('You must verify the OTP before resetting.');
+      setError('You must verify the code before resetting.');
       return;
     }
     setIsLoading(true);
@@ -64,7 +70,7 @@ export default function ResetPassword() {
   if (success) {
     return (
       <AuthLayout>
-        <div className="max-w-[540px] mx-auto text-center">
+        <div className="max-w-[540px] w-full mx-auto text-center">
           <div className="inner-depth p-8">
             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-slate-700 mb-2">Update Successful</h2>
@@ -77,10 +83,11 @@ export default function ResetPassword() {
 
   return (
     <AuthLayout>
-      <div className="max-w-[540px] mx-auto">
+      {/* Added w-full here to prevent squeezing */}
+      <div className="max-w-[540px] w-full mx-auto">
         <div className="mb-8 text-center">
             <h2 className="text-xl font-bold text-slate-700">Update Credentials</h2>
-            <p className="text-sm text-slate-500 mt-1.5">Verify code sent to <strong className="text-slate-700">{targetEmail}</strong></p>
+            <p className="text-sm text-slate-500 mt-1.5">Enter the security code sent to <strong className="text-slate-700">{targetEmail}</strong></p>
         </div>
 
         {error && (
@@ -92,16 +99,42 @@ export default function ResetPassword() {
         <div className="inner-depth p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            <OtpActionInput 
-              label="Verification Code" 
-              targetValue={targetEmail} 
-              onSendOtp={handleSendOtp} 
-              onVerifyOtp={handleVerifyOtp}
-              required 
-            />
+            {/* Custom Verification Block */}
+            <div className="p-5 border border-slate-300/50 rounded-2xl bg-lightgray/50 mb-6">
+              {!isOtpVerified ? (
+                <>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Verification Code</label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <KeyRound className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Enter 6-digit code"
+                        value={currentOtp}
+                        onChange={(e) => setCurrentOtp(e.target.value.replace(/\D/g, ''))}
+                        className="embossed-input w-full pl-10 pr-4 py-3 rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={currentOtp.length < 4 || isVerifying}
+                      className="shrink-0 bg-gamboge-600 hover:bg-gamboge-500 text-white font-bold py-3 px-8 rounded-xl text-xs uppercase tracking-widest transition-colors flex items-center justify-center disabled:opacity-50"
+                    >
+                      {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify Code'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center text-sm font-bold text-green-600 bg-green-50 px-4 py-4 rounded-xl border border-green-200 uppercase tracking-widest">
+                  <CheckCircle2 className="w-5 h-5 mr-2" /> Identity Verified
+                </div>
+              )}
+            </div>
 
-            <InputField label="New Password" type="password" name="newPassword" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={!isOtpVerified} required icon={<Lock />} />
-            <InputField label="Confirm New Password" type="password" name="confirmPassword" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={!isOtpVerified} required icon={<Lock />} />
+            <InputField label="New Password" type="password" name="newPassword" placeholder={!isOtpVerified ? "Verify code to unlock" : "••••••••"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} disabled={!isOtpVerified} required icon={<Lock />} />
+            <InputField label="Confirm New Password" type="password" name="confirmPassword" placeholder={!isOtpVerified ? "Verify code to unlock" : "••••••••"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={!isOtpVerified} required icon={<Lock />} />
 
             <button type="submit" disabled={isLoading || !isOtpVerified || !newPassword} className="shine-btn w-full flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm tracking-widest uppercase mt-6 disabled:opacity-75">
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Confirm New Password</span>}

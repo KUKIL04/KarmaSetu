@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, type ReactNode } from 'react';
+import { AuthAPI } from '../api/auth.api';
 
 // Define the User shape matching our raw SQL backend
 export interface User {
@@ -55,7 +56,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(userData);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (refreshToken) {
+      try {
+        // Tell the backend to kill the refresh token in Postgres
+        await AuthAPI.logout(refreshToken);
+      } catch (err) {
+        console.error('Failed to notify backend of logout, clearing local state anyway.');
+      }
+    }
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken'); // Wipe the refresh token on manual logout
     localStorage.removeItem('user');

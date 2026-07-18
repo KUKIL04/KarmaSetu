@@ -157,13 +157,14 @@ export class QueryService {
     return res.rows;
   }
 
-  static async assignUserModule(userId: string, moduleId: string, assignedBy: string) {
+  static async assignUserModule(userId: string, moduleId: string, assignedBy: string, accessLevel: 'READ' | 'WRITE' = 'READ') {
     const query = `
-      INSERT INTO user_modules (user_id, module_id, assigned_by)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, module_id) DO NOTHING;
+      INSERT INTO user_modules (user_id, module_id, assigned_by, access_level)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (user_id, module_id) 
+      DO UPDATE SET access_level = EXCLUDED.access_level, assigned_by = EXCLUDED.assigned_by;
     `;
-    await pool.query(query, [userId, moduleId, assignedBy]);
+    await pool.query(query, [userId, moduleId, assignedBy, accessLevel]);
   }
 
   static async getUserAccessibleModules(userId: string, tenantId: string) {
@@ -246,11 +247,42 @@ export class QueryService {
     return res.rows[0];
   }
 
+  // --- ROLE ASSIGNMENTS ---
+
+  // Assign a role to a user
+  static async assignUserRole(userId: string, roleId: string, assignedBy: string) {
+    const query = `
+      INSERT INTO user_roles (user_id, role_id, assigned_by)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, role_id) DO NOTHING;
+    `;
+    await pool.query(query, [userId, roleId, assignedBy]);
+  }
+
+  // Fetch users assigned to a specific role
+  static async getRoleUsers(tenantId: string, roleId: string) {
+    const res = await pool.query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.status 
+       FROM users u
+       JOIN user_roles ur ON u.id = ur.user_id
+       WHERE ur.role_id = $1 AND u.tenant_id = $2
+       ORDER BY u.first_name ASC`,
+      [roleId, tenantId]
+    );
+    return res.rows;
+  }
+
+  // Revoke a role from a user
+  static async revokeUserRole(userId: string, roleId: string) {
+    const query = `DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`;
+    await pool.query(query, [userId, roleId]);
+  }
+  
   // --- REVERSE MODULE MAPPING ---
 
   static async getModuleUsers(tenantId: string, moduleId: string) {
     const res = await pool.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.status, um.assigned_at
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.status, um.assigned_at, um.access_level
        FROM users u
        JOIN user_modules um ON u.id = um.user_id
        WHERE um.module_id = $1 AND u.tenant_id = $2

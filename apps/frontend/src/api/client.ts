@@ -80,3 +80,11 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Create a clean instance for public routes (Login, Register, Invites, Logout)
+export const publicClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3333/api/v1',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
