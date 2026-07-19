@@ -144,19 +144,22 @@ export default function ModuleManager() {
         
         {/* Left Column: Module List */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="flex items-center mb-6 pl-2">
-            <div className="p-2 bg-lightgray rounded-lg mr-3 shadow-inner">
-              <LayoutGrid className="w-5 h-5 text-gamboge-600" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-700 tracking-tight">Assets</h2>
-          </div>
-          <button 
+          <div className="flex items-center justify-between mb-6 pl-2">
+            <div className="flex items-center">
+              <div className="p-2 bg-lightgray rounded-lg mr-3 shadow-inner">
+                <LayoutGrid className="w-5 h-5 text-gamboge-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-700 tracking-tight">Assets</h2>
+            </div>  
+
+            <button 
               onClick={() => setIsCreateModuleModalOpen(true)}
               className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl shadow-sm transition-colors"
               title="Provision New Module"
             >
               <Plus className="w-5 h-5" />
             </button>
+          </div>
 
           {isLoadingModules ? (
             <div className="flex items-center text-slate-500 font-bold uppercase tracking-widest p-4">

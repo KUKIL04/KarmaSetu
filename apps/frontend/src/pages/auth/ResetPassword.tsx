@@ -17,6 +17,10 @@ export default function ResetPassword() {
   const [currentOtp, setCurrentOtp] = useState('');
   const [isOtpVerified, setIsOtpVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Timer & Resend States
+  const [timeLeft, setTimeLeft] = useState(60); // Starts at 60s assuming OTP was just sent
+  const [isResending, setIsResending] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +30,13 @@ export default function ResetPassword() {
     if (!targetEmail) setError('No email provided. Return to forgot password.');
   }, [targetEmail]);
 
+  // Handle the Countdown Timer
+  useEffect(() => {
+    if (timeLeft <= 0 || isOtpVerified) return;
+    const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, isOtpVerified]);
+
   const handleVerifyOtp = async () => {
     if (currentOtp.length < 4) return;
     setIsVerifying(true);
@@ -34,11 +45,25 @@ export default function ResetPassword() {
       const response = await AuthAPI.verifyOtp(targetEmail, 'EMAIL', currentOtp);
       if (response.success) {
         setIsOtpVerified(true);
+        setTimeLeft(0); // Clear timer on success
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid or expired code.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setIsResending(true);
+    setError('');
+    try {
+      await AuthAPI.sendOtp(targetEmail, 'EMAIL');
+      setTimeLeft(60); // Reset timer to 60s
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to resend code.');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -55,6 +80,7 @@ export default function ResetPassword() {
     }
     setIsLoading(true);
     try {
+      // Pass the verified OTP to the final reset call
       await AuthAPI.resetPassword(targetEmail, currentOtp, newPassword);
       setSuccess(true);
       setTimeout(() => {
@@ -83,7 +109,6 @@ export default function ResetPassword() {
 
   return (
     <AuthLayout>
-      {/* Added w-full here to prevent squeezing */}
       <div className="max-w-[540px] w-full mx-auto">
         <div className="mb-8 text-center">
             <h2 className="text-xl font-bold text-slate-700">Update Credentials</h2>
@@ -99,7 +124,7 @@ export default function ResetPassword() {
         <div className="inner-depth p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Custom Verification Block */}
+            {/* Custom Verification Block with Timer */}
             <div className="p-5 border border-slate-300/50 rounded-2xl bg-lightgray/50 mb-6">
               {!isOtpVerified ? (
                 <>
@@ -124,6 +149,24 @@ export default function ResetPassword() {
                     >
                       {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify Code'}
                     </button>
+                  </div>
+                  
+                  {/* Resend Timer Logic */}
+                  <div className="mt-3 pr-1 text-right">
+                    {timeLeft > 0 ? (
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        Resend in 00:{timeLeft.toString().padStart(2, '0')}
+                      </span>
+                    ) : (
+                      <button 
+                        type="button" 
+                        onClick={handleResendOtp} 
+                        disabled={isResending}
+                        className="text-xs font-bold text-gamboge-600 hover:text-gamboge-700 uppercase tracking-widest transition-colors disabled:opacity-50"
+                      >
+                        {isResending ? 'Sending...' : 'Resend Code'}
+                      </button>
+                    )}
                   </div>
                 </>
               ) : (

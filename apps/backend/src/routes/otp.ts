@@ -34,8 +34,14 @@ router.post('/verify', async (req, res, next) => {
     await OtpService.verifyOtp(target, type, otp);
 
     return res.json({ success: true, message: 'Verification successful' });
-  } catch (err) {
-    next(err); // The service throws errors if invalid/expired, which the global error handler catches
+  } catch (err: any) {
+    // Intercept known client-side errors and return a 400 status directly
+    if (err.message === 'Invalid OTP' || err.message === 'OTP has expired or does not exist') {
+      return res.status(400).json({ error: err.message });
+    }
+    
+    // If it's a database/Redis error, pass it to the global 500 error handler
+    next(err); 
   }
 });
 
