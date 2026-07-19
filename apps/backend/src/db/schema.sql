@@ -22,9 +22,23 @@ END $$;
 CREATE TABLE IF NOT EXISTS tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_name VARCHAR(255) NOT NULL,
-  custom_domain VARCHAR(255) UNIQUE, -- For white-label domain routing
-  logo_url TEXT,                      -- Path to custom branding logo
-  theme_color VARCHAR(50) DEFAULT '#000000', -- Custom CSS hex code
+  custom_domain VARCHAR(255) UNIQUE, 
+  logo_url TEXT,                      
+  theme_color VARCHAR(50) DEFAULT '#000000',
+  
+  -- Compliance & Identity
+  legal_name VARCHAR(255),
+  tax_id VARCHAR(100),
+  registration_number VARCHAR(100),
+  industry VARCHAR(100),
+  org_size VARCHAR(50),
+  
+  -- Address Info
+  address_street TEXT,
+  address_city VARCHAR(100),
+  address_state VARCHAR(100),
+  address_pincode VARCHAR(20),
+
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -144,6 +158,7 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 CREATE TABLE IF NOT EXISTS user_roles (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   role_id UUID REFERENCES roles(id) ON DELETE CASCADE NOT NULL,
+  assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
   PRIMARY KEY (user_id, role_id)
 );
 
@@ -153,6 +168,7 @@ CREATE TABLE IF NOT EXISTS user_modules (
   module_id UUID REFERENCES modules(id) ON DELETE CASCADE NOT NULL,
   assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
   assigned_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  access_level VARCHAR(10) DEFAULT 'READ',
   PRIMARY KEY (user_id, module_id)
 );
 
