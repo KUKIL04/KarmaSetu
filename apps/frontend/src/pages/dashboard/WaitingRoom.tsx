@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function WaitingRoom() {
-  const { user, logout } = useAuth();
+  // 1. Extract tenantSettings from Auth Context
+  const { user, logout, tenantSettings } = useAuth();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(false);
   const [message, setMessage] = useState('');
@@ -18,9 +19,7 @@ export default function WaitingRoom() {
       const profile = await UserAPI.getProfile();
       
       if (profile.status === 'ACTIVE') {
-        // Clear the stale JWT that still says 'PENDING'
         logout(); 
-        // Route to login so they can fetch a fresh, 'ACTIVE' token
         navigate('/login', { 
           state: { message: 'Security clearance updated! Please sign in again to synchronize your access.' } 
         });
@@ -38,11 +37,25 @@ export default function WaitingRoom() {
   return (
     <AuthLayout>
       <div className="max-w-[540px] mx-auto text-center">
+        
+        {/* Dynamic Tenant Branding */}
         <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-700">Waiting Room</h2>
-            <p className="text-sm text-slate-500 mt-1.5 font-semibold text-gamboge-600 tracking-widest uppercase">
-              ID: {user?.firstName} {user?.lastName}
-            </p>
+          <div className="w-16 h-16 embossed-badge rounded-full flex items-center justify-center mx-auto mb-4 bg-lightgray overflow-hidden shadow-sm">
+            <img 
+              src={tenantSettings?.logoUrl 
+                    ? (tenantSettings.logoUrl.startsWith('http') ? tenantSettings.logoUrl : `${import.meta.env.VITE_API_URL?.replace('/api/v1', '')}${tenantSettings.logoUrl}`) 
+                    : "/logo.png"} 
+              alt="Company Logo" 
+              className="w-full h-full object-cover p-1"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </div>
+          <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+            {tenantSettings?.name || 'Workspace'}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1.5 font-semibold text-gamboge-600 tracking-widest uppercase">
+            ID: {user?.firstName} {user?.lastName}
+          </p>
         </div>
 
         {message && (

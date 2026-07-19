@@ -3,6 +3,7 @@ import { AdminAPI } from '../../api/admin.api';
 import { InputField } from '../../components/ui/InputField';
 import { Building2, Globe, Palette, Save, Loader2, Settings, UploadCloud, CheckCircle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function WorkspaceSettings() {
   const [formData, setFormData] = useState({
@@ -11,7 +12,8 @@ export default function WorkspaceSettings() {
     logoUrl: '',
     themeColor: '#C7923E',
   });
-  
+
+  const { refreshBranding } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -20,27 +22,6 @@ export default function WorkspaceSettings() {
   useEffect(() => {
     fetchSettings();
   }, []);
-
-  // Tiny helper to slightly darken a hex color for hover states and gradients
-  const adjustColor = (color: string, amount: number) => {
-    return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
-  }
-
-  // Dynamically inject the theme colors into the CSS root when the color picker changes
-  useEffect(() => {
-    if (formData.themeColor) {
-      const root = document.documentElement;
-      const baseColor = formData.themeColor;
-      
-      // Set the main accent (500)
-      root.style.setProperty('--theme-500', baseColor);
-      
-      // Auto-generate lighter and darker shades for gradients and hovers!
-      root.style.setProperty('--theme-400', adjustColor(baseColor, 20));
-      root.style.setProperty('--theme-600', adjustColor(baseColor, -20));
-      root.style.setProperty('--theme-700', adjustColor(baseColor, -40));
-    }
-  }, [formData.themeColor]);
 
   const fetchSettings = async () => {
     try {
@@ -101,6 +82,7 @@ export default function WorkspaceSettings() {
     try {
       await AdminAPI.updateSettings(formData);
       notify('success', 'Workspace settings updated successfully.');
+      await refreshBranding();
     } catch (err: any) {
       notify('error', err.response?.data?.error || 'Failed to update settings');
     } finally {

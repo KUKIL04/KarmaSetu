@@ -1,46 +1,106 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 
-// 1. We introduce a prop to dynamically control the wrapper width
 interface AuthLayoutProps {
   children: React.ReactNode;
   maxWidth?: string; 
 }
 
-// 2. We set the default width to 540px (perfect for Login, Reset, Forgot)
 export default function AuthLayout({ children, maxWidth = "max-w-[800px]" }: AuthLayoutProps) {
+  const [branding, setBranding] = useState<{name?: string, logoUrl?: string, themeColor?: string}>({});
+
+  useEffect(() => {
+    // 1. Attempt to grab branding from tenantSettings (logged in) OR tempBranding (invite link)
+    const storedBranding = localStorage.getItem('tenantSettings') || localStorage.getItem('tempBranding');
+    
+    if (storedBranding) {
+      try {
+        const parsed = JSON.parse(storedBranding);
+        setBranding(parsed);
+        
+        // 2. Programmatically apply the theme color to the root if it exists
+        if (parsed.themeColor) {
+          const root = document.documentElement;
+          root.style.setProperty('--theme-500', parsed.themeColor);
+          
+          // Generate hover variants dynamically
+          const adjustColor = (color: string, amount: number) => {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+          };
+          root.style.setProperty('--theme-400', adjustColor(parsed.themeColor, 20));
+          root.style.setProperty('--theme-600', adjustColor(parsed.themeColor, -20));
+          root.style.setProperty('--theme-700', adjustColor(parsed.themeColor, -40));
+        }
+      } catch (e) {
+        console.error("Failed to parse branding data");
+      }
+    }
+  }, []);
+
   return (
-    <div className="antialiased min-h-screen relative text-slate-700">
+    <div 
+      className="antialiased min-h-screen relative text-slate-700 transition-colors duration-500 flex flex-col justify-center overflow-hidden"
+      style={{
+        // A very professional, ultra-subtle 3% tint of the brand color acting as the base
+        backgroundColor: 'color-mix(in srgb, var(--theme-500, #e49b0f) 3%, #f5efe8d0)',
+        // A clean, soft diagonal lighting effect
+        backgroundImage: `radial-gradient(circle at top left, color-mix(in srgb, var(--theme-500, #e49b0f) 8%, transparent) 0%, transparent 60%)`,
+      }}
+    >
       
-      {/* Background SVG Waves */}
-      <div className="fixed inset-0 w-full h-full z-0 pointer-events-none overflow-hidden flex flex-col justify-between">
-        <svg className="w-full h-auto min-h-[30vh] object-cover" preserveAspectRatio="none" viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg">
-            <path fill="#fdeacc" fillOpacity="0.8" d="M0,96L60,90.7C120,85,240,75,360,96C480,117,600,171,720,181.3C840,192,960,160,1080,133.3C1200,107,1320,85,1380,74.7L1440,64L1440,0L1380,0C1320,0,1200,0,1080,0C960,0,840,0,720,0C600,0,480,0,360,0C240,0,120,0,60,0L0,0Z"></path>
-            <path fill="#fad399" fillOpacity="0.5" d="M0,192L48,176C96,160,192,128,288,138.7C384,149,480,203,576,213.3C672,224,768,192,864,165.3C960,139,1056,117,1152,112C1248,107,1344,117,1392,122.7L1440,128L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"></path>
-            <path fill="#475569" fillOpacity="0.4" d="M0,256L80,234.7C160,213,320,171,480,170.7C640,171,800,213,960,213.3C1120,213,1280,171,1360,149.3L1440,128L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
-        </svg>
-        <svg className="w-full h-auto min-h-[40vh] object-cover -mb-1" preserveAspectRatio="none" viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg">
-            <path fill="#e49b0f" fillOpacity="0.15" d="M0,224L60,213.3C120,203,240,181,360,186.7C480,192,600,224,720,229.3C840,235,960,213,1080,186.7C1200,160,1320,128,1380,112L1440,96L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-            <path fill="#fdeacc" fillOpacity="0.7" d="M0,96L48,112C96,128,192,160,288,181.3C384,203,480,213,576,213.3C672,213,768,203,864,186.7C960,171,1056,149,1152,149.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-            <path fill="#475569" fillOpacity="0.5" d="M0,160L80,176C160,192,320,224,480,218.7C640,213,800,171,960,160C1120,149,1280,171,1360,181.3L1440,192L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
+      {/* Sleek, Professional Architectural Bottom Wave */}
+      <div className="absolute bottom-0 left-0 w-full z-0 pointer-events-none">
+        <svg className="w-full h-auto min-h-[35vh] object-cover" viewBox="0 0 1440 400" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Layer 1 - Lightest */}
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.04" d="M0,250L48,245.3C96,241,192,231,288,245.3C384,260,480,298,576,303.8C672,309,768,282,864,250.5C960,219,1056,183,1152,174.5C1248,166,1344,185,1392,194.8L1440,204.5L1440,400L1392,400C1344,400,1248,400,1152,400C1056,400,960,400,864,400C768,400,672,400,576,400C480,400,384,400,288,400C192,400,96,400,48,400L0,400Z"></path>
+          {/* Layer 2 - Medium */}
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.08" d="M0,320L60,314.7C120,309,240,299,360,303.8C480,309,600,331,720,325.2C840,319,960,288,1080,266.5C1200,245,1320,235,1380,229.8L1440,224.5L1440,400L1380,400C1320,400,1200,400,1080,400C960,400,840,400,720,400C600,400,480,400,360,400C240,400,120,400,60,400L0,400Z"></path>
+          {/* Layer 3 - Darkest/Accent */}
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.12" d="M0,370L120,360C240,350,480,330,720,335C960,340,1200,370,1320,385L1440,400L1440,400L1320,400C1200,400,960,400,720,400C480,400,240,400,120,400L0,400Z"></path>
         </svg>
       </div>
 
-      <div className="min-h-screen flex items-center justify-center py-16 px-4">
-        <div className="w-full flex justify-center z-10 relative">
+      <div className="flex items-center justify-center py-12 px-4 z-10 w-full min-h-screen">
+        <div className="w-full flex justify-center relative">
           
-          {/* 3. We dynamically apply the maxWidth prop to the embossed card itself */}
-          <div className={`embossed-card p-2 w-full ${maxWidth} transition-all duration-300`}>
+          <div className={`embossed-card p-2 w-full ${maxWidth} transition-all duration-300 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)]`}>
             <div className="px-8 pb-10 pt-4 relative z-10">
-              <div className="text-center relative flex flex-col items-center mb-8">
-                  <div className="w-20 h-20 embossed-badge rounded-full flex items-center justify-center mb-5 -mt-12 bg-lightgray relative z-20">
-                      <ShieldCheck className="w-10 h-10 text-gamboge-500 drop-shadow-sm" />
+              
+              {/* Dynamic Logo & Organization Name */}
+              <div className="text-center relative flex flex-col items-center mb-10">
+                  <div className="w-24 h-24 embossed-badge rounded-full flex items-center justify-center mb-6 -mt-14 bg-lightgray relative z-20 overflow-hidden shadow-xl border-4 border-white">
+                      {branding.logoUrl ? (
+                        <img 
+                          src={branding.logoUrl.startsWith('http') ? branding.logoUrl : `${import.meta.env.VITE_API_URL?.replace('/api/v1', '')}${branding.logoUrl}`}
+                          alt="Organization Logo"
+                          className="w-full h-full object-cover p-2"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                            e.currentTarget.insertAdjacentHTML('afterend', '<span style="color: var(--theme-500, #e49b0f)" class="font-extrabold text-xs">LOGO</span>');
+                          }}
+                        />
+                      ) : (
+                        // Fallback ShieldCheck if no logo is available yet
+                        <ShieldCheck style={{ color: 'var(--theme-500, #e49b0f)' }} className="w-12 h-12 drop-shadow-sm" />
+                      )}
                   </div>
-                  <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">KARMASETU</h1>
-                  <div className="h-1.5 w-16 bg-gamboge-500 rounded-full mt-3 opacity-90 shadow-sm"></div>
+                  
+                  <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight uppercase">
+                    {branding.name || 'KARMASETU'}
+                  </h1>
+                  <div className="h-1.5 w-12 rounded-full mt-4 shadow-sm" style={{ backgroundColor: 'var(--theme-500, #e49b0f)' }}></div>
               </div>
               
               {children}
+              
+              {/* KARMASETU PLATFORM BRANDING */}
+              <div className="mt-10 pt-6 border-t border-slate-200/60 text-center">
+                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                  Powered by <br/>
+                  <span style={{ color: 'var(--theme-500, #e49b0f)' }} className="text-xs tracking-[0.25em] drop-shadow-sm">KARMASETU</span>
+                </p>
+              </div>
               
             </div>
           </div>

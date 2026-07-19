@@ -7,24 +7,36 @@ export class TenantController {
   // Brand registration step
   static async registerTenant(req: Request, res: Response, next: NextFunction) {
     try {
-      const { companyName, customDomain, logoUrl, themeColor, adminEmail, adminPassword, adminFirstName, adminLastName, adminGender, adminMobile, adminDob, adminMotherTongue, securityQ1, securityA1, securityQ2, securityA2 } = req.body;
+      const { 
+        companyName, customDomain, logoUrl, themeColor, 
+        legalName, taxId, registrationNumber, industry, orgSize, 
+        addressStreet, addressCity, addressState, addressPincode,
+        adminEmail, adminPassword, adminFirstName, adminMiddleName, adminLastName, 
+        adminGender, adminMobile, adminDob, adminMotherTongue, 
+        securityQ1, securityA1, securityQ2, securityA2 
+      } = req.body;
 
       if (!companyName || !adminEmail || !adminPassword || !adminFirstName || !adminLastName || !adminGender || !adminMobile || !adminDob || !adminMotherTongue) {
         return res.status(400).json({ error: 'Required fields for tenant registration are missing' });
       }
 
-      // 1. Create the Tenant
-      const tenant = await QueryService.createTenant(companyName, customDomain, logoUrl, themeColor);
+      // 1. Create the Tenant with full compliance data
+      const tenant = await QueryService.createTenant({
+        companyName, domain: customDomain, logoUrl, themeColor,
+        legalName, taxId, registrationNumber, industry, orgSize,
+        addressStreet, addressCity, addressState, addressPincode
+      });
 
       // 2. Hash admin password
       const passwordHash = await CryptoService.hashPassword(adminPassword);
 
-      // 3. Create Admin User (Status is instantly ACTIVE since they are the registrar)
+      // 3. Create Admin User
       const adminUser = await QueryService.createUser({
         tenantId: tenant.id,
         email: adminEmail,
         passwordHash,
         firstName: adminFirstName,
+        middleName: adminMiddleName, // Ensure middle name is passed here!
         lastName: adminLastName,
         gender: adminGender,
         mobileNo: adminMobile,
@@ -39,20 +51,9 @@ export class TenantController {
       });
 
       // Log the event
-      await QueryService.logEvent(
-        tenant.id,
-        adminUser.id,
-        'TENANT_ONBOARDED',
-        req.ip || '127.0.0.1',
-        req.headers['user-agent'] || 'unknown',
-        { companyName }
-      );
+      await QueryService.logEvent(tenant.id, adminUser.id, 'TENANT_ONBOARDED', req.ip || '127.0.0.1', req.headers['user-agent'] || 'unknown', { companyName });
 
-      return res.status(201).json({
-        message: 'Tenant and Admin registered successfully!',
-        tenant,
-        admin: adminUser,
-      });
+      return res.status(201).json({ message: 'Tenant and Admin registered successfully!', tenant, admin: adminUser });
     } catch (err) {
       next(err);
     }

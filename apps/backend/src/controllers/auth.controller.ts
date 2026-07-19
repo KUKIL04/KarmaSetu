@@ -3,6 +3,7 @@ import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { redisClient } from '../db/redis.js';
 import { pool } from '../db/index.js';
+import { OtpService } from '../services/otp.service.js';
 
 export class AuthController {
   // Login Endpoint
@@ -19,13 +20,39 @@ export class AuthController {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      const match = await CryptoService.verifyPassword(password, user.password_hash);
-      if (!match) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+      // 1. SECURITY: Check if the account is currently locked out
+      const lockoutKey = `bl:user:${user.id}`;
+      const isLocked = await redisClient.get(lockoutKey);
+      
+      if (isLocked) {
+        return res.status(403).json({ error: 'Account locked due to too many failed attempts. Please contact your administrator or wait 15 minutes.' });
       }
 
-      // Clear any existing security lockouts for this user upon a valid login
-      await redisClient.del(`bl:user:${user.id}`);
+      const match = await CryptoService.verifyPassword(password, user.password_hash);
+      
+      // 2. SECURITY: Handle failed login attempts
+      if (!match) {
+        const attemptsKey = `login_attempts:${user.id}`;
+        const attempts = await redisClient.incr(attemptsKey);
+        
+        // Set the counter to reset after 15 minutes (900 seconds)
+        if (attempts === 1) {
+          await redisClient.expire(attemptsKey, 900);
+        }
+
+        // Lock the account if they hit 3 failed attempts
+        if (attempts >= 3) {
+          await redisClient.setEx(lockoutKey, 900, 'locked'); // Lock for 15 minutes
+          await redisClient.del(attemptsKey); // Clear the counter
+          return res.status(403).json({ error: 'Maximum attempts reached. Account locked for 15 minutes.' });
+        }
+
+        return res.status(401).json({ error: `Invalid credentials. ${3 - attempts} attempts remaining.` });
+      }
+
+      // 3. SECURITY: Clear any existing security lockouts and counters upon a valid login
+      await redisClient.del(lockoutKey);
+      await redisClient.del(`login_attempts:${user.id}`);
 
       // Generate credentials
       const accessToken = CryptoService.generateAccessToken({
@@ -145,7 +172,8 @@ export class AuthController {
         return res.status(404).json({ error: 'No active account found with this corporate email.' });
       }
 
-      // TODO: We will plug the Nodemailer OTP dispatch here shortly!
+      // 🚀 FIRE THE OTP SERVICE
+      await OtpService.generateAndSend(email, 'EMAIL');
       
       return res.json({ success: true, message: 'OTP dispatched securely.' });
     } catch (err) {
@@ -191,8 +219,16 @@ export class AuthController {
         return res.status(404).json({ error: 'Invalid or expired invitation link' });
       }
 
+      // FETCH TENANT BRANDING
+      const tenantSettings = await QueryService.getTenantSettings(invite.tenant_id);
+
       // Securely return the email tied strictly to this database record
-      return res.json({ email: invite.email });
+      return res.json({ 
+        email: invite.email,
+        tenantName: tenantSettings?.name,
+        logoUrl: tenantSettings?.logo_url,
+        themeColor: tenantSettings?.theme_color
+      });
     } catch (err) {
       next(err);
     }

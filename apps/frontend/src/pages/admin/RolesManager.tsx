@@ -19,6 +19,12 @@ export default function RolesManager() {
   const [unassignedUsers, setUnassignedUsers] = useState<any[]>([]); // Mock pool of users to add
   const [selectedToGrant, setSelectedToGrant] = useState<string[]>([]);
 
+  // Create Role States
+  const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [newRoleDesc, setNewRoleDesc] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
   useEffect(() => {
     const fetchRoles = async () => {
       try {
@@ -38,6 +44,24 @@ export default function RolesManager() {
   const notify = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage({ type: '', text: '' }), 5000);
+  };
+
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+    try {
+      const res = await AdminAPI.createRole(newRoleName, newRoleDesc);
+      setRoles(prev => [res, ...prev]);
+      notify('success', 'Role created successfully.');
+      setIsCreateRoleModalOpen(false);
+      setNewRoleName('');
+      setNewRoleDesc('');
+      handleSelectRole(res); // Auto-select the newly created role
+    } catch (err: any) {
+      notify('error', err.response?.data?.error || 'Failed to create role.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleSelectRole = async (role: any) => {
@@ -117,6 +141,7 @@ export default function RolesManager() {
             </div>
             
             <button 
+              onClick={() => setIsCreateRoleModalOpen(true)}
               className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl shadow-sm transition-colors"
               title="Create New Role"
             >
@@ -330,6 +355,39 @@ export default function RolesManager() {
                 Assign ({selectedToGrant.length})
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE ROLE MODAL */}
+      {isCreateRoleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="embossed-card p-8 w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight flex items-center">
+                 Define New Role
+              </h3>
+              <button onClick={() => setIsCreateRoleModalOpen(false)} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateRole} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Role Title</label>
+                <input required type="text" value={newRoleName} onChange={e => setNewRoleName(e.target.value)} className="embossed-input w-full px-4 py-3 rounded-xl text-sm font-bold text-slate-700 outline-none" placeholder="e.g. Finance Auditor" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Description</label>
+                <input required type="text" value={newRoleDesc} onChange={e => setNewRoleDesc(e.target.value)} className="embossed-input w-full px-4 py-3 rounded-xl text-sm font-bold text-slate-700 outline-none" placeholder="Role responsibilities..." />
+              </div>
+              <div className="pt-4 flex space-x-4">
+                <button type="button" onClick={() => setIsCreateRoleModalOpen(false)} className="flex-1 py-3 text-slate-700 bg-lightgray hover:bg-slate-200 shadow-sm font-bold rounded-2xl text-sm tracking-widest uppercase">Cancel</button>
+                <button type="submit" disabled={isCreating} className="flex-1 shine-btn py-3 text-white font-bold rounded-2xl text-sm tracking-widest uppercase disabled:opacity-50">
+                  {isCreating ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Create Role'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

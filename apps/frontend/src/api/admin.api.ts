@@ -14,8 +14,8 @@ export const AdminAPI = {
   },
 
   // Unlock a user from the Waiting Room and assign them modules
-  grantAccess: async (targetUserId: string, moduleIds: string[]) => {
-    const response = await apiClient.post('/admin/grant-access', { targetUserId, moduleIds });
+  grantAccess: async (targetUserId: string, moduleIds: string[], roleIds: string[] = []) => {
+    const response = await apiClient.post('/admin/grant-access', { targetUserId, moduleIds, roleIds });
     return response.data; // Returns { success, message }
   },
 

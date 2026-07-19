@@ -14,7 +14,6 @@ import TenantOnboarding from './pages/tenant/TenantOnboarding';
 // Admin Pages
 import AdminLayout from './pages/admin/AdminLayout';
 import ProvisioningManager from './pages/admin/ProvisioningManager';
-import ApprovalsQueue from './pages/admin/ApprovalsQueue';
 import DirectoryControl from './pages/admin/DirectoryControl';
 import SystemAudits from './pages/admin/SystemAudits';
 import RolesManager from './pages/admin/RolesManager';
@@ -43,7 +42,6 @@ export default function App() {
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<ProvisioningManager />} />
-              <Route path="approvals" element={<ApprovalsQueue />} />
               <Route path="directory" element={<DirectoryControl />} />
               <Route path="audits" element={<SystemAudits />} />
               <Route path="roles" element={<RolesManager />} />

@@ -3,6 +3,8 @@ import { QueryService } from '../services/query.service.js';
 import { CryptoService } from '../services/crypto.service.js';
 import { AuthenticatedRequest } from '../middlewares/auth.js';
 import { redisClient } from '../db/redis.js';
+import { EmailService } from '../services/email.service.js';
+import { pool } from '../db/index.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,6 +29,9 @@ export class AdminController {
       await QueryService.createInvitation(tenantId, email, tokenHash, invitedBy, expiresAt);
 
       const mockInviteLink = `http://localhost:3000/register?token=${rawToken}`;
+
+      // SEND THE INVITE EMAIL
+      await EmailService.sendInviteEmail(email, mockInviteLink);
 
       await QueryService.logEvent(
         tenantId,
@@ -105,6 +110,13 @@ export class AdminController {
 
       const updatedUser = await QueryService.updateUserStatus(id, tenantId, status as any);
       
+      // Fetch user email to send notification
+      const userRecord = await QueryService.getUserByIdAndTenant(id, tenantId);
+      if (userRecord && userRecord.email) {
+        // SEND STATUS CHANGE EMAIL
+        await EmailService.sendStatusChangeEmail(userRecord.email, status);
+      }
+
       await QueryService.logEvent(
         tenantId,
         req.user?.userId || null,
@@ -125,19 +137,30 @@ export class AdminController {
     try {
       const tenantId = req.user?.tenantId;
       const adminId = req.user?.userId;
-      const { targetUserId, moduleIds } = req.body; // Array of module IDs to unlock
+      
+      // We extract roleIds here as well
+      const { targetUserId, moduleIds, roleIds } = req.body; 
 
       if (!tenantId || !adminId) return res.status(400).json({ error: 'Context invalid' });
-      if (!targetUserId || !moduleIds || !Array.isArray(moduleIds)) {
-        return res.status(400).json({ error: 'Target user and module IDs are required' });
+      if (!targetUserId) {
+        return res.status(400).json({ error: 'Target user ID is required' });
       }
 
-      // 1. Map individual modules
-      for (const moduleId of moduleIds) {
-        await QueryService.assignUserModule(targetUserId, moduleId, adminId);
+      // 1. Assign Modules
+      if (Array.isArray(moduleIds)) {
+        for (const moduleId of moduleIds) {
+          await QueryService.assignUserModule(targetUserId, moduleId, adminId);
+        }
       }
 
-      // 2. Set user as Active!
+      // 2. Assign Roles (Reusing the existing DB logic!)
+      if (Array.isArray(roleIds)) {
+        for (const roleId of roleIds) {
+          await QueryService.assignUserRole(targetUserId, roleId, adminId);
+        }
+      }
+
+      // 3. Set user as Active!
       await QueryService.updateUserStatus(targetUserId, tenantId, 'ACTIVE');
 
       await QueryService.logEvent(
@@ -146,7 +169,7 @@ export class AdminController {
         'ACCESS_GRANTED',
         req.ip || '127.0.0.1',
         req.headers['user-agent'] || 'unknown',
-        { targetUserId, moduleIds }
+        { targetUserId, moduleIds, roleIds }
       );
 
       return res.json({ success: true, message: 'Access granted. User is now ACTIVE.' });
@@ -374,14 +397,41 @@ export class AdminController {
   static async triggerPasswordReset(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user?.tenantId;
-      const { userId } = req.params;
+      const adminId = req.user?.userId;
+      const userId = req.params.userId as string;
       
       if (!tenantId) return res.status(400).json({ error: 'Tenant context lost' });
 
-      // In a production app, this would generate a secure token and fire an email service (like SendGrid/AWS SES).
-      // For now, we simulate success and log it to audits.
+      // 1. Fetch the target user's email
+      const userRecord = await QueryService.getUserByIdAndTenant(userId, tenantId);
+      if (!userRecord || !userRecord.email) {
+        return res.status(404).json({ error: 'User not found in directory' });
+      }
+
+      // 2. Scramble the password (use a highly secure random hash so they cannot log in)
+      const randomScramble = await CryptoService.hashPassword(CryptoService.generateRandomToken());
+      await QueryService.updateUserPassword(userRecord.email, randomScramble);
+
+      // 3. Nuke all database sessions for this user
+      await pool.query('UPDATE refresh_tokens SET is_revoked = TRUE WHERE user_id = $1', [userId]);
+
+      // 4. Blacklist the user in Redis to instantly kill live Access Tokens
+      await redisClient.setEx(`bl:user:${userId}`, 900, 'revoked');
+
+      // 5. Send the notification email (NOT an OTP)
+      await EmailService.sendForceResetNotification(userRecord.email);
+
+      // 6. Log the severe security action
+      await QueryService.logEvent(
+        tenantId,
+        adminId || null,
+        'ADMIN_FORCED_PASSWORD_RESET',
+        req.ip || '127.0.0.1',
+        req.headers['user-agent'] || 'unknown',
+        { targetUserId: userId }
+      );
       
-      return res.json({ success: true, message: 'Password reset protocol initiated' });
+      return res.json({ success: true, message: 'Credentials invalidated, sessions killed, and user notified.' });
     } catch (err) {
       next(err);
     }
@@ -390,14 +440,32 @@ export class AdminController {
   static async clearSecurityLockout(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user?.tenantId;
-      const { userId } = req.params;
+      const adminId = req.user?.userId;
+      const userId = req.params.userId as string;
       
       if (!tenantId) return res.status(400).json({ error: 'Tenant context lost' });
 
-      // In a real database schema, you would execute:
-      // await pool.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1 AND tenant_id = $2', [userId, tenantId]);
+      // 1. Delete the user's blacklist/lockout record from Redis
+      const redisKey = `bl:user:${userId}`;
+      await redisClient.del(redisKey);
+
+      // 2. Fetch the user's email to notify them
+      const userRecord = await QueryService.getUserByIdAndTenant(userId, tenantId);
+      if (userRecord && userRecord.email) {
+        await EmailService.sendLockoutClearedEmail(userRecord.email);
+      }
+
+      // 3. Log the security action
+      await QueryService.logEvent(
+        tenantId,
+        adminId || null,
+        'SECURITY_LOCKOUT_CLEARED',
+        req.ip || '127.0.0.1',
+        req.headers['user-agent'] || 'unknown',
+        { targetUserId: userId }
+      );
       
-      return res.json({ success: true, message: 'Account lockout cleared' });
+      return res.json({ success: true, message: 'Account lockout cleared and user notified.' });
     } catch (err) {
       next(err);
     }

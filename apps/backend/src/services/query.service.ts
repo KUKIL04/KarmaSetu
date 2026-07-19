@@ -2,13 +2,28 @@ import { pool } from '../db/index.js';
 
 export class QueryService {
   // --- Tenants ---
-  static async createTenant(companyName: string, domain?: string, logoUrl?: string, themeColor?: string) {
+  static async createTenant(data: {
+    companyName: string; domain?: string; logoUrl?: string; themeColor?: string;
+    legalName?: string; taxId?: string; registrationNumber?: string;
+    industry?: string; orgSize?: string;
+    addressStreet?: string; addressCity?: string; addressState?: string; addressPincode?: string;
+  }) {
     const query = `
-      INSERT INTO tenants (company_name, custom_domain, logo_url, theme_color)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO tenants (
+        company_name, custom_domain, logo_url, theme_color,
+        legal_name, tax_id, registration_number, industry, org_size,
+        address_street, address_city, address_state, address_pincode
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *;
     `;
-    const res = await pool.query(query, [companyName, domain || null, logoUrl || null, themeColor || '#000000']);
+    const values = [
+      data.companyName, data.domain || null, data.logoUrl || null, data.themeColor || '#000000',
+      data.legalName || null, data.taxId || null, data.registrationNumber || null,
+      data.industry || null, data.orgSize || null,
+      data.addressStreet || null, data.addressCity || null, data.addressState || null, data.addressPincode || null
+    ];
+    const res = await pool.query(query, values);
     return res.rows[0];
   }
 
