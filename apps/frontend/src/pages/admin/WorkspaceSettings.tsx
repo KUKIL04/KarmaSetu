@@ -181,7 +181,7 @@ export default function WorkspaceSettings() {
                   Brand Theme Color
                 </label>
                 <div className="flex space-x-3 group relative">
-                  <div className="absolute left-4 top-3.5 bg-lightgray rounded-lg z-10 pointer-events-none">
+                  <div className="absolute left-4 top-3 bg-lightgray rounded-lg z-10 pointer-events-none">
                      <Palette className="w-5 h-5 text-slate-400 group-focus-within:text-gamboge-500 transition-colors" />
                   </div>
                   <input 

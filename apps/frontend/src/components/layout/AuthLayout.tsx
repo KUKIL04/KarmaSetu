@@ -41,8 +41,8 @@ export default function AuthLayout({ children, maxWidth = "max-w-[800px]" }: Aut
     <div 
       className="antialiased min-h-screen relative text-slate-700 transition-colors duration-500 flex flex-col justify-center overflow-hidden"
       style={{
-        // A very professional, ultra-subtle 3% tint of the brand color acting as the base
-        backgroundColor: 'color-mix(in srgb, var(--theme-500, #e49b0f) 3%, #f5efe8d0)',
+        // A very professional, ultra-subtle 10% tint of the brand color acting as the base
+        backgroundColor: 'color-mix(in srgb, var(--theme-500, #e49b0f) 10%, #f5efe8d0)',
         // A clean, soft diagonal lighting effect
         backgroundImage: `radial-gradient(circle at top left, color-mix(in srgb, var(--theme-500, #e49b0f) 8%, transparent) 0%, transparent 60%)`,
       }}
@@ -52,11 +52,11 @@ export default function AuthLayout({ children, maxWidth = "max-w-[800px]" }: Aut
       <div className="absolute bottom-0 left-0 w-full z-0 pointer-events-none">
         <svg className="w-full h-auto min-h-[35vh] object-cover" viewBox="0 0 1440 400" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
           {/* Layer 1 - Lightest */}
-          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.04" d="M0,250L48,245.3C96,241,192,231,288,245.3C384,260,480,298,576,303.8C672,309,768,282,864,250.5C960,219,1056,183,1152,174.5C1248,166,1344,185,1392,194.8L1440,204.5L1440,400L1392,400C1344,400,1248,400,1152,400C1056,400,960,400,864,400C768,400,672,400,576,400C480,400,384,400,288,400C192,400,96,400,48,400L0,400Z"></path>
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.14" d="M0,250L48,245.3C96,241,192,231,288,245.3C384,260,480,298,576,303.8C672,309,768,282,864,250.5C960,219,1056,183,1152,174.5C1248,166,1344,185,1392,194.8L1440,204.5L1440,400L1392,400C1344,400,1248,400,1152,400C1056,400,960,400,864,400C768,400,672,400,576,400C480,400,384,400,288,400C192,400,96,400,48,400L0,400Z"></path>
           {/* Layer 2 - Medium */}
-          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.08" d="M0,320L60,314.7C120,309,240,299,360,303.8C480,309,600,331,720,325.2C840,319,960,288,1080,266.5C1200,245,1320,235,1380,229.8L1440,224.5L1440,400L1380,400C1320,400,1200,400,1080,400C960,400,840,400,720,400C600,400,480,400,360,400C240,400,120,400,60,400L0,400Z"></path>
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.28" d="M0,320L60,314.7C120,309,240,299,360,303.8C480,309,600,331,720,325.2C840,319,960,288,1080,266.5C1200,245,1320,235,1380,229.8L1440,224.5L1440,400L1380,400C1320,400,1200,400,1080,400C960,400,840,400,720,400C600,400,480,400,360,400C240,400,120,400,60,400L0,400Z"></path>
           {/* Layer 3 - Darkest/Accent */}
-          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.12" d="M0,370L120,360C240,350,480,330,720,335C960,340,1200,370,1320,385L1440,400L1440,400L1320,400C1200,400,960,400,720,400C480,400,240,400,120,400L0,400Z"></path>
+          <path fill="var(--theme-500, #e49b0f)" fillOpacity="0.5" d="M0,370L120,360C240,350,480,330,720,335C960,340,1200,370,1320,385L1440,400L1440,400L1320,400C1200,400,960,400,720,400C480,400,240,400,120,400L0,400Z"></path>
         </svg>
       </div>
 

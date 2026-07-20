@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { AdminRoute } from './components/layout/AdminRoute';
+import { PublicRoute } from './components/layout/PublicRoute';
 
 // Pages
 import Login from './pages/auth/Login';
@@ -25,12 +26,14 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
-        <Route path="/onboard-workspace" element={<TenantOnboarding />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Public Routes (Requires user to be logged OUT) */}
+        <Route element={<PublicRoute />}>
+          <Route path="/onboard-workspace" element={<TenantOnboarding />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+        </Route>
 
         {/* Protected Routes (Requires Authentication) */}
         <Route element={<ProtectedRoute />}>

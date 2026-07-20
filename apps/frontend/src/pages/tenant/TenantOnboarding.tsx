@@ -1,22 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useDropzone } from 'react-dropzone';
 import { InputField } from '../../components/ui/InputField';
 import { OtpActionInput } from '../../components/ui/OtpActionInput';
 import { TenantAPI } from '../../api/tenant.api';
+import { AdminAPI } from '../../api/admin.api';
 import { AuthAPI } from '../../api/auth.api'; 
-import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Image as ImageIcon, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin } from 'lucide-react';
+import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Image as ImageIcon, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin, UploadCloud } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function TenantOnboarding() {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    // Brand
     companyName: '', customDomain: '', logoUrl: '', themeColor: '#C7923E',
-    // Compliance & Scale
     legalName: '', taxId: '', registrationNumber: '', industry: 'Education', orgSize: '1-50',
-    // HQ
     addressStreet: '', addressCity: '', addressState: '', addressPincode: '',
-    // Admin
     adminFirstName: '', adminMiddleName: '', adminLastName: '', adminEmail: '', adminMobile: '',
     adminPassword: '', confirmPassword: '', adminGender: 'Male', adminDob: '',
     adminMotherTongue: 'English', securityQ1: 'What is your pets name?', securityA1: '',
@@ -27,6 +25,7 @@ export default function TenantOnboarding() {
   const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -34,6 +33,31 @@ export default function TenantOnboarding() {
   const [copied, setCopied] = useState(false);
 
   const areContactsVerified = isEmailVerified && isPhoneVerified;
+
+  // Drag and Drop Handler
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const res = await TenantAPI.uploadOnboardingLogo(file);
+      if (res.logoUrl) {
+        setFormData(prev => ({ ...prev, logoUrl: res.logoUrl }));
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to upload logo');
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.svg'] },
+    maxFiles: 1,
+    maxSize: 5 * 1024 * 1024 // 5MB
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -64,18 +88,13 @@ export default function TenantOnboarding() {
   };
 
   const validateStep1 = () => {
-    if (!formData.companyName) {
-      setError('Company Name is required.');
-      return false;
-    }
+    if (!formData.companyName) { setError('Company Name is required.'); return false; }
     setError('');
     return true;
   };
 
   const nextStep = () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
-    }
+    if (step === 1 && validateStep1()) setStep(2);
   };
 
   const prevStep = () => setStep(1);
@@ -85,12 +104,10 @@ export default function TenantOnboarding() {
     setError('');
 
     if (formData.adminPassword !== formData.confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+      setError('Passwords do not match.'); return;
     }
     if (!areContactsVerified) {
-      setError('You must verify both your Email and Mobile Number before proceeding.');
-      return;
+      setError('You must verify both your Email and Mobile Number before proceeding.'); return;
     }
 
     setIsLoading(true);
@@ -142,9 +159,10 @@ export default function TenantOnboarding() {
 
   return (
     <AuthLayout maxWidth="max-w-7xl">
-      <div className="w-full transition-all duration-300">
+      <form onSubmit={handleSubmit} className="flex flex-col max-h-[60vh] h-full w-full transition-all duration-300">
         
-        <div className="mb-8 text-center">
+        {/* --- STATIC HEADER --- */}
+        <div className="shrink-0 mb-6 text-center">
           <h2 className="text-3xl font-bold text-slate-700 tracking-tight">Provision Organization</h2>
           <div className="flex items-center justify-center space-x-2 mt-3">
             <div className={`h-2 rounded-full transition-all duration-300 ${step === 1 ? 'w-8 bg-gamboge-500' : 'w-2 bg-slate-300'}`}></div>
@@ -153,22 +171,20 @@ export default function TenantOnboarding() {
           <p className="text-xs text-slate-500 mt-2 font-bold uppercase tracking-widest">
             Step {step} of 2: {step === 1 ? 'Corporate Identity' : 'Master Administrator'}
           </p>
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm text-center font-semibold animate-in fade-in slide-in-from-top-2">
+              {error}
+            </div>
+          )}
         </div>
 
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm text-center font-semibold animate-in fade-in slide-in-from-top-2">
-            {error}
-          </div>
-        )}
-
-        <div className="inner-depth p-6 sm:p-10 lg:p-12 overflow-hidden relative">
-          <form onSubmit={handleSubmit}>
+        {/* --- SCROLLABLE EMBOSSED BODY --- */}
+        <div className="flex-1 min-h-0 relative scroll-depth-wrapper w-full flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6 sm:p-10 lg:p-12 bg-lightgray neumorphic-scrollbar">
             
-            {/* STEP 1: ORGANIZATION DETAILS */}
+            {/* STEP 1 */}
             {step === 1 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-300">
-                
-                {/* Branding Section */}
                 <div>
                   <div className="flex items-center mb-6">
                     <div className="p-2 bg-lightgray rounded-lg mr-3 shadow-inner"><Building2 className="w-6 h-6 text-gamboge-600" /></div>
@@ -178,27 +194,54 @@ export default function TenantOnboarding() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <InputField label="Brand / Display Name" name="companyName" value={formData.companyName} onChange={handleChange} required icon={<Building2 />} />
                     <InputField label="Custom Domain (Optional)" name="customDomain" placeholder="e.g. app.yourcompany.com" value={formData.customDomain} onChange={handleChange} icon={<Globe />} />
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputField label="Logo URL (Optional)" name="logoUrl" placeholder="https://..." value={formData.logoUrl} onChange={handleChange} icon={<ImageIcon />} />
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">
+                        Corporate Logo
+                      </label>
+                      <div 
+                        {...getRootProps()} 
+                        className={`inner-depth px-6 py-4 rounded-3xl flex flex-col items-center justify-center text-center cursor-pointer transition-all border-2 min-h-[108px] ${
+                          isDragActive ? 'border-gamboge-500 bg-gamboge-50/50' : 'border-transparent hover:bg-slate-100'
+                        }`}
+                      >
+                        <input {...getInputProps()} />
+                        
+                        {isUploading ? (
+                          <Loader2 className="w-6 h-6 text-gamboge-500 animate-spin mb-2" />
+                        ) : formData.logoUrl ? (
+                          <div className="relative group">
+                            <img 
+                              src={formData.logoUrl.startsWith('http') ? formData.logoUrl : `${import.meta.env.VITE_API_URL?.replace('/api/v1', '')}${formData.logoUrl}`} 
+                              alt="Logo Preview" 
+                              className="h-12 object-contain mb-1 rounded-lg"
+                            />
+                            <div className="absolute inset-0 bg-slate-900/50 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <span className="text-white text-[10px] font-bold uppercase tracking-widest">Replace</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <UploadCloud className={`w-8 h-8 mb-2 ${isDragActive ? 'text-gamboge-600' : 'text-slate-400'}`} />
+                        )}
+                        
+                        <p className="text-xs font-bold text-slate-700">
+                          {isDragActive ? 'Drop image here' : formData.logoUrl ? 'Update Logo' : 'Drag & Drop Logo'}
+                        </p>
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Brand Theme Color</label>
                       <div className="flex space-x-3 group relative">
                         <div className="absolute left-4 top-2.5 bg-lightgray rounded-lg z-10 pointer-events-none">
                            <Palette className="w-5 h-5 text-slate-400 group-focus-within:text-gamboge-500 transition-colors" />
                         </div>
-                        <input 
-                          type="color" name="themeColor" value={formData.themeColor} onChange={handleChange} 
-                          className="h-[52px] w-16 rounded-2xl cursor-pointer embossed-input p-1.5 pl-8 shrink-0"
-                        />
-                        <input 
-                          type="text" name="themeColor" value={formData.themeColor} onChange={handleChange} 
-                          className="flex-1 min-w-0 embossed-input px-4 rounded-2xl text-sm font-bold text-slate-700 uppercase tracking-widest outline-none"
-                        />
+                        <input type="color" name="themeColor" value={formData.themeColor} onChange={handleChange} className="h-[52px] w-16 rounded-2xl cursor-pointer embossed-input p-1.5 pl-8 shrink-0" />
+                        <input type="text" name="themeColor" value={formData.themeColor} onChange={handleChange} className="flex-1 min-w-0 embossed-input px-4 rounded-2xl text-sm font-bold text-slate-700 uppercase tracking-widest outline-none" />
                       </div>
                     </div>
                   </div>
@@ -206,7 +249,6 @@ export default function TenantOnboarding() {
 
                 <hr className="border-slate-300/50" />
 
-                {/* Legal & Compliance Section */}
                 <div>
                   <div className="flex items-center mb-6">
                     <div className="p-2 bg-lightgray rounded-lg mr-3 shadow-inner"><Briefcase className="w-6 h-6 text-gamboge-600" /></div>
@@ -244,7 +286,6 @@ export default function TenantOnboarding() {
 
                 <hr className="border-slate-300/50" />
 
-                {/* HQ Address Section */}
                 <div>
                   <div className="flex items-center mb-6">
                     <div className="p-2 bg-lightgray rounded-lg mr-3 shadow-inner"><MapPin className="w-6 h-6 text-gamboge-600" /></div>
@@ -265,24 +306,10 @@ export default function TenantOnboarding() {
                     <InputField label="PIN Code" name="addressPincode" value={formData.addressPincode} onChange={handleChange} />
                   </div>
                 </div>
-
-                <div className="pt-8 flex flex-col-reverse sm:flex-row justify-between items-center gap-4">
-                  <Link to="/login" className="text-xs font-bold text-slate-500 hover:text-slate-800 uppercase tracking-widest transition-colors w-full sm:w-auto text-center py-2">
-                    Already have a workspace? Sign in
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={nextStep}
-                    className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest"
-                  >
-                    <span>Next Phase</span>
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </button>
-                </div>
               </div>
             )}
 
-            {/* STEP 2: MASTER ADMIN DETAILS */}
+            {/* STEP 2 */}
             {step === 2 && (
               <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-300">
                 <div className="flex items-center mb-6">
@@ -307,19 +334,11 @@ export default function TenantOnboarding() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6 p-6 border border-slate-300/50 rounded-3xl bg-lightgray/30 shadow-inner">
                   <div className="space-y-4">
                     <InputField label="E-mail" type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} required disabled={isEmailOtpSent || isEmailVerified} icon={<Mail />} className={isEmailOtpSent || isEmailVerified ? "opacity-70 cursor-not-allowed" : ""} />
-                    <OtpActionInput 
-                      label="Email Verification" targetValue={formData.adminEmail} 
-                      onSendOtp={(target) => handleSendOtp(target, 'EMAIL')} 
-                      onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'EMAIL', otp)} required 
-                    />
+                    <OtpActionInput label="Email Verification" targetValue={formData.adminEmail} onSendOtp={(target) => handleSendOtp(target, 'EMAIL')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'EMAIL', otp)} required />
                   </div>
                   <div className="space-y-4">
                     <InputField label="Mobile No." name="adminMobile" value={formData.adminMobile} onChange={handleChange} required disabled={isPhoneOtpSent || isPhoneVerified} icon={<Phone />} className={isPhoneOtpSent || isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
-                    <OtpActionInput 
-                      label="Mobile Verification" targetValue={formData.adminMobile} 
-                      onSendOtp={(target) => handleSendOtp(target, 'PHONE')} 
-                      onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required 
-                    />
+                    <OtpActionInput label="Mobile Verification" targetValue={formData.adminMobile} onSendOtp={(target) => handleSendOtp(target, 'PHONE')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required />
                   </div>
                 </div>
 
@@ -348,30 +367,39 @@ export default function TenantOnboarding() {
                     <InputField label="Answer" name="securityA2" value={formData.securityA2} onChange={handleChange} required />
                   </div>
                 </div>
-
-                <div className="pt-8 flex flex-col-reverse sm:flex-row justify-between items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={prevStep}
-                    className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm uppercase tracking-widest transition-colors flex items-center justify-center"
-                  >
-                    <ArrowLeft className="w-5 h-5 mr-2" />
-                    <span>Back</span>
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading || !areContactsVerified}
-                    className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest disabled:opacity-50"
-                  >
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
-                    <span>Provision Organization</span>
-                  </button>
-                </div>
               </div>
             )}
-          </form>
+          </div>
         </div>
-      </div>
+
+        {/* --- STATIC STICKY FOOTER --- */}
+        <div className="shrink-0 pt-6 mt-2 flex flex-col-reverse sm:flex-row justify-between items-center gap-4 bg-transparent relative z-10">
+          
+          {step === 1 ? (
+             <Link to="/login" className="text-xs font-bold text-slate-500 hover:text-slate-800 uppercase tracking-widest transition-colors w-full sm:w-auto text-center py-2">
+                Already have a workspace? Sign in
+             </Link>
+          ) : (
+             <button type="button" onClick={prevStep} className="w-full sm:w-auto px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl text-sm uppercase tracking-widest transition-colors flex items-center justify-center">
+                <ArrowLeft className="w-5 h-5 mr-2" />
+                <span>Back</span>
+             </button>
+          )}
+          
+          {step === 1 ? (
+             <button type="button" onClick={nextStep} className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest">
+                <span>Next Phase</span>
+                <ArrowRight className="w-5 h-5 ml-2" />
+             </button>
+          ) : (
+             <button type="submit" disabled={isLoading || !areContactsVerified} className="shine-btn w-full sm:w-auto px-10 flex items-center justify-center space-x-2 py-4 text-white font-bold rounded-2xl text-sm uppercase tracking-widest disabled:opacity-50">
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ShieldCheck className="w-5 h-5 mr-2" />}
+                <span>Provision Organization</span>
+             </button>
+          )}
+
+        </div>
+      </form>
     </AuthLayout>
   );
 }
