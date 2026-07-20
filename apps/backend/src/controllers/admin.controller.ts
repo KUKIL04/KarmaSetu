@@ -495,7 +495,7 @@ export class AdminController {
       // Generate the public URL path that React will use for the live preview
       const logoUrl = `/uploads/${req.file.filename}`;
 
-      // Notice: We are NOT touching the database here anymore!
+      // We are NOT touching the database here anymore!
       return res.json({ 
         success: true, 
         message: 'Logo staged for preview',

@@ -3,23 +3,37 @@ import nodemailer from 'nodemailer';
 export class EmailService {
   private static transporter: nodemailer.Transporter;
 
-  // Initialize the Ethereal SMTP transporter dynamically
-  private static async getTransporter() {
+  private static getTransporter() {
     if (!this.transporter) {
-      // Automatically generates a temporary Ethereal account for local dev
-      const testAccount = await nodemailer.createTestAccount();
-      
-      this.transporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false, 
-        auth: {
-          user: testAccount.user, // e.g., 'vicky.stark@ethereal.email'
-          pass: testAccount.pass,
-        },
-      });
-      console.log(`✉️ Ethereal Email Ready: ${testAccount.user}`);
+      // Direct environmental switch: If in production/staging, hook up the actual SMTP cluster
+      if (process.env.NODE_ENV === 'production' || process.env.SMTP_HOST) {
+        this.transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.resend.com', // or smtp.sendgrid.net, email-smtp.us-east-1.amazonaws.com
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
+          auth: {
+            user: process.env.SMTP_USER, // Your verified provider access key
+            pass: process.env.SMTP_PASSWORD, // Your provider secret key
+          },
+        });
+        console.log(`🚀 Production SMTP Mail Pool initialized via ${process.env.SMTP_HOST}`);
+      } else {
+        // Fallback to local sandbox fallback if environment variables are missing
+        return this.initializeEtherealTransporter();
+      }
     }
+    return this.transporter;
+  }
+
+  private static async initializeEtherealTransporter() {
+    const testAccount = await nodemailer.createTestAccount();
+    this.transporter = nodemailer.createTransport({
+      host: "smtp.ethereal.email",
+      port: 587,
+      secure: false,
+      auth: { user: testAccount.user, pass: testAccount.pass },
+    });
+    console.log(`✉️ Local Dev Sandbox Enabled. Ethereal Inbox: ${testAccount.user}`);
     return this.transporter;
   }
 
@@ -28,7 +42,7 @@ export class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@yourcompany.com>',
+        from: '"Workspace Security" <security@karmasetu.com>',
         to,
         subject: 'Your Matrix Security Code',
         text: `Your verification code is: ${otp}. It expires in 10 minutes.`,
@@ -57,7 +71,7 @@ export class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
-        from: '"HR Command" <hr@yourcompany.com>',
+        from: '"HR Command" <hr@karmasetu.com>',
         to,
         subject: 'Invitation to Join Workspace',
         html: `
@@ -80,7 +94,7 @@ export class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
-        from: '"Workspace Admin" <admin@yourcompany.com>',
+        from: '"Workspace Admin" <admin@karmasetu.com>',
         to,
         subject: 'Account Status Update',
         html: `
@@ -102,7 +116,7 @@ export class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@yourcompany.com>',
+        from: '"Workspace Security" <security@karmasetu.com>',
         to,
         subject: 'Account Unlocked',
         html: `
@@ -125,7 +139,7 @@ export class EmailService {
     try {
       const transporter = await this.getTransporter();
       const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@yourcompany.com>',
+        from: '"Workspace Security" <security@karmasetu.com>',
         to,
         subject: 'Mandatory Password Reset Required',
         html: `

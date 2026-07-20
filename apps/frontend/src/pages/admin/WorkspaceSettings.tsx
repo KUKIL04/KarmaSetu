@@ -50,7 +50,7 @@ export default function WorkspaceSettings() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Drag and Drop Handler[cite: 40]
+  // Drag and Drop Handler
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -139,7 +139,7 @@ export default function WorkspaceSettings() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               
-              {/* File Upload Dropzone[cite: 40] */}
+              {/* File Upload Dropzone */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">
                   Corporate Logo

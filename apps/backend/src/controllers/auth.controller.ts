@@ -243,10 +243,10 @@ export class AuthController {
         return res.status(401).json({ error: 'Refresh token is required' });
       }
 
-      // Hash the incoming raw token to compare against the database record[cite: 13]
+      // Hash the incoming raw token to compare against the database record
       const hashedRefresh = CryptoService.hashToken(refreshToken);
       
-      // Look up the token ensuring it hasn't been manually revoked[cite: 12]
+      // Look up the token ensuring it hasn't been manually revoked
       const tokenRecord = await QueryService.getRefreshToken(hashedRefresh);
 
       if (!tokenRecord) {
@@ -258,14 +258,14 @@ export class AuthController {
         return res.status(401).json({ error: 'Refresh token has expired' });
       }
 
-      // Re-verify the user's status using strict multi-tenant validation[cite: 12]
+      // Re-verify the user's status using strict multi-tenant validation
       const user = await QueryService.getUserByIdAndTenant(tokenRecord.user_id, tokenRecord.tenant_id);
       
       if (!user || user.status !== 'ACTIVE') {
         return res.status(401).json({ error: 'User account is inactive or disabled' });
       }
 
-      // Generate a fresh Access Token using your 15m expiration policy[cite: 13]
+      // Generate a fresh Access Token using your 15m expiration policy
       const newAccessToken = CryptoService.generateAccessToken({
         userId: user.id,
         tenantId: user.tenant_id,

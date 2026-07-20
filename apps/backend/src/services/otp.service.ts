@@ -8,7 +8,7 @@ export class OtpService {
     // 1. Generate a cryptographically secure 6-digit code
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 2. Store in Redis with a 10-minute (600 seconds) expiration[cite: 36]
+    // 2. Store in Redis with a 10-minute (600 seconds) expiration
     const redisKey = `otp:${type}:${target}`;
     await redisClient.setEx(redisKey, 600, otp);
 
