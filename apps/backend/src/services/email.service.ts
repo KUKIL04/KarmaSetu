@@ -89,7 +89,35 @@ export class EmailService {
     }
   }
 
-  // --- 3. Status Change Notification ---
+  // --- 3. Workspace Added Notification (Global Identity) ---
+  static async sendWorkspaceAddedNotification(to: string, tenantName: string) {
+    try {
+      const transporter = await this.getTransporter();
+      
+      // Construct the standard login link
+      const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+      
+      const info = await transporter.sendMail({
+        from: '"HR Command" <hr@karmasetu.com>',
+        to,
+        subject: `You have been added to ${tenantName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+            <h2 style="color: #e49b0f;">Workspace Assignment Update</h2>
+            <p>Your global account has been successfully linked to the <strong>${tenantName}</strong> workspace.</p>
+            <p>You have been placed in the secure Waiting Room. You can log in at any time to check your module provisioning status.</p>
+            <a href="${loginLink}" style="display: inline-block; padding: 12px 24px; background-color: #e49b0f; color: white; text-decoration: none; font-weight: bold; border-radius: 8px; margin: 20px 0;">Log In to Platform</a>
+            <p style="font-size: 12px; color: #64748b;">Powered by KARMASETU</p>
+          </div>
+        `
+      });
+      console.log(`\n📩 Workspace notification sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
+    } catch (error) {
+      console.error("Failed to send workspace added notification email:", error);
+    }
+  }
+
+  // --- 4. Status Change Notification ---
   static async sendStatusChangeEmail(to: string, newStatus: string) {
     try {
       const transporter = await this.getTransporter();
@@ -111,7 +139,7 @@ export class EmailService {
     }
   }
 
-  // --- 4. Account Unlocked Notification ---
+  // --- 5. Account Unlocked Notification ---
   static async sendLockoutClearedEmail(to: string) {
     try {
       const transporter = await this.getTransporter();
@@ -134,7 +162,7 @@ export class EmailService {
     }
   }
 
-  // --- 5. Force Password Reset Notification ---
+  // --- 6. Force Password Reset Notification ---
   static async sendForceResetNotification(to: string) {
     try {
       const transporter = await this.getTransporter();

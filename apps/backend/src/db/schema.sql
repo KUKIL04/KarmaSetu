@@ -1,3 +1,8 @@
+-- ==========================================
+-- ENTERPRISE IDP DATABASE SCHEMA
+-- Features: Global Identity, Tenant Isolation, RBAC & SuperAdmin Control
+-- ==========================================
+
 -- Enable UUID generation support in PostgreSQL
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -16,11 +21,20 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+DO $$ BEGIN
+    CREATE TYPE tenant_status AS ENUM ('PENDING_APPROVAL', 'ACTIVE', 'FROZEN', 'DELETED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- ==========================================
--- 2. CORE TENANT & BRANDING
+-- 2. CORE PLATFORM ARCHITECTURE
 -- ==========================================
+
+-- TENANTS: Isolated Corporate Workspaces
 CREATE TABLE IF NOT EXISTS tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  status tenant_status DEFAULT 'ACTIVE' NOT NULL, -- SuperAdmin kill switch control
   company_name VARCHAR(255) NOT NULL,
   custom_domain VARCHAR(255) UNIQUE, 
   logo_url TEXT,                      
@@ -43,13 +57,13 @@ CREATE TABLE IF NOT EXISTS tenants (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- ==========================================
--- 3. USERS (Multi-Tenant Scoped)
--- ==========================================
+-- USERS: Global Identity Matrix
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  email VARCHAR(255) NOT NULL,
+  
+  -- Global Uniqueness Coordinates
+  email VARCHAR(255) NOT NULL UNIQUE,
+  mobile_no VARCHAR(20) NOT NULL UNIQUE,
   
   -- Name Split
   first_name VARCHAR(100) NOT NULL,
@@ -57,28 +71,64 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(100) NOT NULL,
   
   -- Profile Details
-  gender VARCHAR(20) NOT NULL, -- 'Male', 'Female', etc.
+  gender VARCHAR(20) NOT NULL,
   country_code VARCHAR(10) NOT NULL DEFAULT '91',
-  mobile_no VARCHAR(20) NOT NULL,
   date_of_birth DATE NOT NULL,
   alternate_email VARCHAR(255),
   mother_tongue VARCHAR(100) NOT NULL,
   
   -- Security Questions
   security_question_1 VARCHAR(255) NOT NULL,
-  security_answer_1 VARCHAR(255) NOT NULL, -- hashed in production, but we can store plaintext/hashed for now
+  security_answer_1 VARCHAR(255) NOT NULL,
   security_question_2 VARCHAR(255) NOT NULL,
   security_answer_2 VARCHAR(255) NOT NULL,
 
-  password_hash TEXT NOT NULL, -- Argon2id secure hash
-  status user_status DEFAULT 'UNVERIFIED' NOT NULL,
-  is_tenant_admin BOOLEAN DEFAULT FALSE NOT NULL,
+  password_hash TEXT NOT NULL, 
+
+  -- Global Platform Flags
+  is_superadmin BOOLEAN DEFAULT FALSE NOT NULL,
+  is_blacklisted BOOLEAN DEFAULT FALSE NOT NULL,
   
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- WORKSPACE MEMBERSHIPS: Mapping Global Users to Isolated Tenants
+CREATE TABLE IF NOT EXISTS workspace_memberships (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  status user_status DEFAULT 'UNVERIFIED' NOT NULL,
+  is_tenant_admin BOOLEAN DEFAULT FALSE NOT NULL,
+  joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  
+  PRIMARY KEY (user_id, tenant_id)
+);
+
+-- ==========================================
+-- 3. METERING & BILLING ENGINE
+-- ==========================================
+CREATE TABLE IF NOT EXISTS tenant_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  
+  -- Billing Tier Information
+  plan_tier VARCHAR(50) DEFAULT 'FREE_TIER' NOT NULL, 
+  
+  -- The current billing window
+  current_cycle_start TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  current_cycle_end TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '1 month'),
+  
+  -- Live Metering Counters
+  mau_count INT DEFAULT 0 NOT NULL,         
+  api_request_count BIGINT DEFAULT 0 NOT NULL, 
+  
+  -- Configurable Quotas (Null means unlimited)
+  max_mau INT DEFAULT 100, 
+  max_api_requests BIGINT DEFAULT 10000,
+  
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   
-  UNIQUE(tenant_id, email),
-  UNIQUE(tenant_id, mobile_no)
+  UNIQUE(tenant_id)
 );
 
 -- ==========================================
@@ -89,7 +139,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  token_hash VARCHAR(255) NOT NULL UNIQUE, -- SHA-256 hash of the refresh token
+  token_hash VARCHAR(255) NOT NULL UNIQUE, 
   is_revoked BOOLEAN DEFAULT FALSE NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
@@ -100,7 +150,7 @@ CREATE TABLE IF NOT EXISTS invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   email VARCHAR(255) NOT NULL,
-  token_hash VARCHAR(255) NOT NULL UNIQUE, -- SHA-256 hash of the invite token
+  token_hash VARCHAR(255) NOT NULL UNIQUE, 
   invited_by UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
   status invite_status DEFAULT 'PENDING' NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -121,7 +171,7 @@ CREATE TABLE IF NOT EXISTS modules (
   UNIQUE(tenant_id, name)
 );
 
--- Custom Roles defined by HR (e.g., 'HR Manager', 'Payroll Analyst')
+-- Custom Roles defined by HR 
 CREATE TABLE IF NOT EXISTS roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -132,12 +182,12 @@ CREATE TABLE IF NOT EXISTS roles (
   UNIQUE(tenant_id, name)
 );
 
--- Granular permissions (e.g., 'payroll:read', 'leave:approve')
+-- Granular permissions 
 CREATE TABLE IF NOT EXISTS permissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL, -- e.g., "read", "write", "delete"
-  resource VARCHAR(255) NOT NULL, -- e.g., "payroll", "documents"
+  name VARCHAR(255) NOT NULL, 
+  resource VARCHAR(255) NOT NULL, 
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
   
@@ -147,14 +197,12 @@ CREATE TABLE IF NOT EXISTS permissions (
 -- ==========================================
 -- 6. JUNCTION TABLES (Mappings)
 -- ==========================================
--- Map Roles to Permissions
 CREATE TABLE IF NOT EXISTS role_permissions (
   role_id UUID REFERENCES roles(id) ON DELETE CASCADE NOT NULL,
   permission_id UUID REFERENCES permissions(id) ON DELETE CASCADE NOT NULL,
   PRIMARY KEY (role_id, permission_id)
 );
 
--- Map Users to Roles
 CREATE TABLE IF NOT EXISTS user_roles (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   role_id UUID REFERENCES roles(id) ON DELETE CASCADE NOT NULL,
@@ -162,7 +210,6 @@ CREATE TABLE IF NOT EXISTS user_roles (
   PRIMARY KEY (user_id, role_id)
 );
 
--- Map Users to Allowed Modules (for user landing routing)
 CREATE TABLE IF NOT EXISTS user_modules (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   module_id UUID REFERENCES modules(id) ON DELETE CASCADE NOT NULL,
@@ -173,27 +220,54 @@ CREATE TABLE IF NOT EXISTS user_modules (
 );
 
 -- ==========================================
--- 7. COMPLIANCE & MONITORING
+-- 7. PLATFORM SECURITY & AUDIT
 -- ==========================================
+-- Platform Threat Intelligence (Global IP Ban Matrix)
+CREATE TABLE IF NOT EXISTS platform_ip_bans (
+  ip_address VARCHAR(45) PRIMARY KEY, 
+  reason TEXT NOT NULL,               
+  banned_by UUID REFERENCES users(id) ON DELETE SET NULL, 
+  expires_at TIMESTAMPTZ,             
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- Workspace Audit Ledger
 CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
   actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  event_type VARCHAR(100) NOT NULL,     -- e.g., 'USER_INVITED', 'ACCESS_GRANTED'
+  event_type VARCHAR(100) NOT NULL,     
   ip_address VARCHAR(45),
   user_agent TEXT,
-  metadata JSONB NOT NULL DEFAULT '{}'::jsonb, -- Store custom context details
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb, 
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- SuperAdmin Control Plane Ledger
+CREATE TABLE IF NOT EXISTS superadmin_audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id UUID REFERENCES users(id) ON DELETE SET NULL, 
+  target_tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL, 
+  target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,     
+  action VARCHAR(100) NOT NULL, 
+  ip_address VARCHAR(45),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 -- ==========================================
 -- 8. OPTIMIZATION INDEXES
 -- ==========================================
--- Indexes on all foreign keys to make raw SQL JOINs ultra-fast
-CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
+-- Foreign key and join performance indexes
+CREATE INDEX IF NOT EXISTS idx_workspace_memberships_tenant ON workspace_memberships(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_invitations_hash ON invitations(token_hash);
 CREATE INDEX IF NOT EXISTS idx_modules_tenant ON modules(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_roles_tenant ON roles(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_permissions_tenant ON permissions(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs(tenant_id);
+
+-- SuperAdmin Access and Security lookup indexes
+CREATE INDEX IF NOT EXISTS idx_users_superadmin ON users(is_superadmin) WHERE is_superadmin = TRUE;
+CREATE INDEX IF NOT EXISTS idx_users_blacklisted ON users(is_blacklisted) WHERE is_blacklisted = TRUE;
+CREATE INDEX IF NOT EXISTS idx_tenant_subscriptions_tenant ON tenant_subscriptions(tenant_id);

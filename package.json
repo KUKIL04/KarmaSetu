@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
  "scripts": {
-  "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\""
+  "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\" \"pnpm --filter superadmin dev\""
   },
   "keywords": [],
   "author": "",

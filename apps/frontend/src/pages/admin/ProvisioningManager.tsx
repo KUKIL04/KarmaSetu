@@ -52,15 +52,24 @@ export default function ProvisioningManager() {
     setIsGenerating(true);
     try {
       const res = await AdminAPI.inviteUser(inviteEmail);
-      let linkToShare = res.inviteLink;
-      if (!linkToShare.includes('http')) {
-        linkToShare = `${window.location.origin}/register?token=${res.inviteLink}`;
+      if (res.existingUser) {
+        // Global User Logic: No link to share, just notify and refresh the queue!
+        notify('success', res.message);
+        setGeneratedLink(''); 
+        fetchData(); // This instantly repopulates the Waiting Room table!
+      } else {
+        // New User Logic: Show the copyable invite link
+        let linkToShare = res.inviteLink;
+        if (!linkToShare.includes('http')) {
+          linkToShare = `${window.location.origin}/register?token=${res.inviteLink}`;
+        }
+        setGeneratedLink(linkToShare);
+        notify('success', res.message || 'Invitation link generated and dispatched to mail.');
       }
-      setGeneratedLink(linkToShare);
       setInviteEmail('');
-      notify('success', 'Invitation link generated and dispatched to mail.');
     } catch (err: any) {
-      notify('error', err.response?.data?.error || 'Failed to generate invite');
+      // This will natively catch the 400 error if the user is already in the workspace!
+      notify('error', err.response?.data?.error || 'Failed to process invite');
     }
     finally {
       setIsGenerating(false);

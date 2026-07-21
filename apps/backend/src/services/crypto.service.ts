@@ -5,6 +5,7 @@ import crypto from 'crypto';
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-production-key-change-me';
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
+const TEMP_TOKEN_EXPIRY = '5m';
 
 export class CryptoService {
   // Hash passwords securely using Argon2id parameters
@@ -48,6 +49,22 @@ export class CryptoService {
 
   // Verify JWT Access Token
   static verifyAccessToken(token: string): any {
+    try {
+      return jwt.verify(token, JWT_SECRET);
+    } catch {
+      return null;
+    }
+  }
+
+  // --- PRE-AUTH TOKEN METHODS ---
+
+  // Generate a short-lived token specifically for workspace selection
+  static generateTempToken(payload: { userId: string }): string {
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: TEMP_TOKEN_EXPIRY });
+  }
+
+  // Verify the temporary token before finalizing login
+  static verifyTempToken(token: string): any {
     try {
       return jwt.verify(token, JWT_SECRET);
     } catch {

@@ -4,9 +4,8 @@ import { useDropzone } from 'react-dropzone';
 import { InputField } from '../../components/ui/InputField';
 import { OtpActionInput } from '../../components/ui/OtpActionInput';
 import { TenantAPI } from '../../api/tenant.api';
-import { AdminAPI } from '../../api/admin.api';
 import { AuthAPI } from '../../api/auth.api'; 
-import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Image as ImageIcon, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin, UploadCloud } from 'lucide-react';
+import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin, UploadCloud } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function TenantOnboarding() {
@@ -25,6 +24,7 @@ export default function TenantOnboarding() {
   const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isGlobalIdentity, setIsGlobalIdentity] = useState(false); // NEW STATE
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ export default function TenantOnboarding() {
   const [successData, setSuccessData] = useState<{ tenantId: string; adminEmail: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const areContactsVerified = isEmailVerified && isPhoneVerified;
+  const areContactsVerified = isEmailVerified && (isPhoneVerified || isGlobalIdentity);
 
   // Drag and Drop Handler
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -56,7 +56,7 @@ export default function TenantOnboarding() {
     onDrop,
     accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.svg'] },
     maxFiles: 1,
-    maxSize: 5 * 1024 * 1024 // 5MB
+    maxSize: 5 * 1024 * 1024 
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -80,7 +80,13 @@ export default function TenantOnboarding() {
   const handleVerifyOtp = async (target: string, type: 'EMAIL' | 'PHONE', otp: string) => {
     const response = await AuthAPI.verifyOtp(target, type, otp);
     if (response.success) {
-      if (type === 'EMAIL') setIsEmailVerified(true);
+      if (type === 'EMAIL') {
+        setIsEmailVerified(true);
+        if (response.userExists) {
+          setIsGlobalIdentity(true);
+          setIsPhoneVerified(true); // Bypass phone req for existing users
+        }
+      }
       if (type === 'PHONE') setIsPhoneVerified(true);
       return true;
     }
@@ -103,11 +109,11 @@ export default function TenantOnboarding() {
     e.preventDefault();
     setError('');
 
-    if (formData.adminPassword !== formData.confirmPassword) {
+    if (!isGlobalIdentity && formData.adminPassword !== formData.confirmPassword) {
       setError('Passwords do not match.'); return;
     }
     if (!areContactsVerified) {
-      setError('You must verify both your Email and Mobile Number before proceeding.'); return;
+      setError('You must verify your contact details before proceeding.'); return;
     }
 
     setIsLoading(true);
@@ -129,7 +135,7 @@ export default function TenantOnboarding() {
             <ShieldCheck className="w-16 h-16 text-green-500 mx-auto mb-4 drop-shadow-sm" />
             <h2 className="text-2xl font-bold text-slate-700 mb-2 tracking-tight">Workspace Created!</h2>
             <p className="text-slate-500 mb-6 text-sm font-medium leading-relaxed">
-              Your organization has been successfully provisioned. Please save your Workspace ID below. You will need it to log in.
+              Your organization has been successfully provisioned. Please save your Workspace ID below.
             </p>
             
             <div className="inner-depth p-6 mb-8 text-left space-y-5 rounded-2xl">
@@ -319,54 +325,71 @@ export default function TenantOnboarding() {
                     <p className="text-sm text-slate-500 font-medium">Configure the root security account for the workspace.</p>
                   </div>
                 </div>
+
+                {isGlobalIdentity && (
+                  <div className="bg-gamboge-50 border border-gamboge-200 p-4 rounded-2xl flex items-start">
+                    <ShieldCheck className="w-6 h-6 text-gamboge-600 mr-3 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-bold text-slate-800">Global Identity Recognized</h4>
+                      <p className="text-sm text-slate-600 mt-1">We found an existing account associated with this email. Please enter your master password to verify your identity and attach this new workspace to your account.</p>
+                    </div>
+                  </div>
+                )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                  <InputField label="First Name" name="adminFirstName" value={formData.adminFirstName} onChange={handleChange} required />
-                  <InputField label="Middle Name (Optional)" name="adminMiddleName" value={formData.adminMiddleName} onChange={handleChange} />
-                  <InputField label="Last Name" name="adminLastName" value={formData.adminLastName} onChange={handleChange} required />
-                  <InputField asSelect label="Sex" name="adminGender" value={formData.adminGender} onChange={handleChange} required>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </InputField>
-                </div>
+                {!isGlobalIdentity && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <InputField label="First Name" name="adminFirstName" value={formData.adminFirstName} onChange={handleChange} required />
+                    <InputField label="Middle Name (Optional)" name="adminMiddleName" value={formData.adminMiddleName} onChange={handleChange} />
+                    <InputField label="Last Name" name="adminLastName" value={formData.adminLastName} onChange={handleChange} required />
+                    <InputField asSelect label="Sex" name="adminGender" value={formData.adminGender} onChange={handleChange} required>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </InputField>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6 p-6 border border-slate-300/50 rounded-3xl bg-lightgray/30 shadow-inner">
                   <div className="space-y-4">
                     <InputField label="E-mail" type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} required disabled={isEmailOtpSent || isEmailVerified} icon={<Mail />} className={isEmailOtpSent || isEmailVerified ? "opacity-70 cursor-not-allowed" : ""} />
                     <OtpActionInput label="Email Verification" targetValue={formData.adminEmail} onSendOtp={(target) => handleSendOtp(target, 'EMAIL')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'EMAIL', otp)} required />
                   </div>
-                  <div className="space-y-4">
-                    <InputField label="Mobile No." name="adminMobile" value={formData.adminMobile} onChange={handleChange} required disabled={isPhoneOtpSent || isPhoneVerified} icon={<Phone />} className={isPhoneOtpSent || isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
-                    <OtpActionInput label="Mobile Verification" targetValue={formData.adminMobile} onSendOtp={(target) => handleSendOtp(target, 'PHONE')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required />
-                  </div>
+                  
+                  {!isGlobalIdentity && (
+                    <div className="space-y-4">
+                      <InputField label="Mobile No." name="adminMobile" value={formData.adminMobile} onChange={handleChange} required disabled={isPhoneOtpSent || isPhoneVerified} icon={<Phone />} className={isPhoneOtpSent || isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
+                      <OtpActionInput label="Mobile Verification" targetValue={formData.adminMobile} onSendOtp={(target) => handleSendOtp(target, 'PHONE')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                  <InputField label="Date Of Birth" type="date" name="adminDob" value={formData.adminDob} onChange={handleChange} required icon={<Calendar />} />
-                  <InputField label="Password" type="password" name="adminPassword" placeholder={!areContactsVerified ? "Verify contacts to unlock" : "••••••••"} value={formData.adminPassword} onChange={handleChange} required disabled={!areContactsVerified} icon={<Lock />} />
-                  <InputField label="Confirm Password" type="password" name="confirmPassword" placeholder={!areContactsVerified ? "Verify contacts to unlock" : "••••••••"} value={formData.confirmPassword} onChange={handleChange} required disabled={!areContactsVerified} icon={<Lock />} />
+                  {!isGlobalIdentity && <InputField label="Date Of Birth" type="date" name="adminDob" value={formData.adminDob} onChange={handleChange} required icon={<Calendar />} />}
+                  <InputField label="Master Password" type="password" name="adminPassword" placeholder={!isEmailVerified ? "Verify email to unlock" : "••••••••"} value={formData.adminPassword} onChange={handleChange} required disabled={!isEmailVerified} icon={<Lock />} />
+                  {!isGlobalIdentity && <InputField label="Confirm Password" type="password" name="confirmPassword" placeholder={!areContactsVerified ? "Verify contacts to unlock" : "••••••••"} value={formData.confirmPassword} onChange={handleChange} required disabled={!areContactsVerified} icon={<Lock />} />}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <InputField asSelect label="Mother Tongue" name="adminMotherTongue" value={formData.adminMotherTongue} onChange={handleChange} required>
-                    <option value="English">English</option>
-                    <option value="Hindi">Hindi</option>
-                    <option value="Assamese">Assamese</option>
-                  </InputField>
-                  <div className="space-y-3">
-                    <InputField asSelect label="Security Question 1" name="securityQ1" value={formData.securityQ1} onChange={handleChange} required>
-                      <option value="What is your pets name?">What is your pets name?</option>
+                {!isGlobalIdentity && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <InputField asSelect label="Mother Tongue" name="adminMotherTongue" value={formData.adminMotherTongue} onChange={handleChange} required>
+                      <option value="English">English</option>
+                      <option value="Hindi">Hindi</option>
+                      <option value="Assamese">Assamese</option>
                     </InputField>
-                    <InputField label="Answer" name="securityA1" value={formData.securityA1} onChange={handleChange} required />
+                    <div className="space-y-3">
+                      <InputField asSelect label="Security Question 1" name="securityQ1" value={formData.securityQ1} onChange={handleChange} required>
+                        <option value="What is your pets name?">What is your pets name?</option>
+                      </InputField>
+                      <InputField label="Answer" name="securityA1" value={formData.securityA1} onChange={handleChange} required />
+                    </div>
+                    <div className="space-y-3">
+                      <InputField asSelect label="Security Question 2" name="securityQ2" value={formData.securityQ2} onChange={handleChange} required>
+                        <option value="Who is your favorite player?">Who is your favorite player?</option>
+                      </InputField>
+                      <InputField label="Answer" name="securityA2" value={formData.securityA2} onChange={handleChange} required />
+                    </div>
                   </div>
-                  <div className="space-y-3">
-                    <InputField asSelect label="Security Question 2" name="securityQ2" value={formData.securityQ2} onChange={handleChange} required>
-                      <option value="Who is your favorite player?">Who is your favorite player?</option>
-                    </InputField>
-                    <InputField label="Answer" name="securityA2" value={formData.securityA2} onChange={handleChange} required />
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>

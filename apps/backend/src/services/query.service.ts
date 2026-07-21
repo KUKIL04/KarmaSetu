@@ -32,6 +32,31 @@ export class QueryService {
     return res.rows[0];
   }
 
+  // FIXED: Joined workspace_memberships to get status and tenant mapping
+  static async getTenantsByEmail(email: string) {
+    const query = `
+      SELECT u.id as user_id, u.password_hash, wm.status, wm.is_tenant_admin, u.first_name, u.last_name, u.email,
+             t.id as tenant_id, t.company_name, t.logo_url
+      FROM users u
+      JOIN workspace_memberships wm ON u.id = wm.user_id
+      JOIN tenants t ON wm.tenant_id = t.id
+      WHERE u.email = $1;
+    `;
+    const res = await pool.query(query, [email]);
+    return res.rows;
+  }
+
+  static async getTenantsByUserId(userId: string) {
+    const query = `
+      SELECT t.id as tenant_id, t.company_name, t.logo_url, wm.status
+      FROM workspace_memberships wm
+      JOIN tenants t ON wm.tenant_id = t.id
+      WHERE wm.user_id = $1;
+    `;
+    const res = await pool.query(query, [userId]);
+    return res.rows;
+  }
+
   static async updateTenantBranding(tenantId: string, companyName: string, logoUrl: string | null, themeColor: string) {
     const query = `
       UPDATE tenants 
@@ -44,6 +69,7 @@ export class QueryService {
   }
 
   // --- Users ---
+  // FIXED: Converted to a Transaction to insert into both users AND workspace_memberships
   static async createUser(userData: {
     tenantId: string;
     email: string;
@@ -63,52 +89,99 @@ export class QueryService {
     isTenantAdmin: boolean;
     status: 'PENDING' | 'ACTIVE' | 'UNVERIFIED';
   }) {
-    const query = `
-      INSERT INTO users (
-        tenant_id, email, password_hash, first_name, middle_name, last_name,
-        gender, mobile_no, date_of_birth, alternate_email, mother_tongue,
-        security_question_1, security_answer_1, security_question_2, security_answer_2,
-        is_tenant_admin, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-      RETURNING id, tenant_id, email, first_name, last_name, status, is_tenant_admin;
-    `;
-    const values = [
-      userData.tenantId, userData.email, userData.passwordHash, userData.firstName, userData.middleName || null, userData.lastName,
-      userData.gender, userData.mobileNo, userData.dateOfBirth, userData.alternateEmail || null, userData.motherTongue,
-      userData.securityQuestion1, userData.securityAnswer1, userData.securityQuestion2, userData.securityAnswer2,
-      userData.isTenantAdmin, userData.status
-    ];
-    const res = await pool.query(query, values);
-    return res.rows[0];
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      const userQuery = `
+        INSERT INTO users (
+          email, password_hash, first_name, middle_name, last_name,
+          gender, mobile_no, date_of_birth, alternate_email, mother_tongue,
+          security_question_1, security_answer_1, security_question_2, security_answer_2
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING id, email, first_name, last_name;
+      `;
+      const userValues = [
+        userData.email, userData.passwordHash, userData.firstName, userData.middleName || null, userData.lastName,
+        userData.gender, userData.mobileNo, userData.dateOfBirth, userData.alternateEmail || null, userData.motherTongue,
+        userData.securityQuestion1, userData.securityAnswer1, userData.securityQuestion2, userData.securityAnswer2
+      ];
+      
+      const userRes = await client.query(userQuery, userValues);
+      const newUser = userRes.rows[0];
+
+      const wmQuery = `
+        INSERT INTO workspace_memberships (user_id, tenant_id, status, is_tenant_admin)
+        VALUES ($1, $2, $3, $4)
+        RETURNING status, is_tenant_admin;
+      `;
+      const wmRes = await client.query(wmQuery, [newUser.id, userData.tenantId, userData.status, userData.isTenantAdmin]);
+      const newWm = wmRes.rows[0];
+
+      await client.query('COMMIT');
+
+      return {
+        id: newUser.id,
+        tenant_id: userData.tenantId,
+        email: newUser.email,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        status: newWm.status,
+        is_tenant_admin: newWm.is_tenant_admin
+      };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
+  // FIXED: Joined workspace_memberships to filter by tenant and get status
   static async getUsersByTenant(tenantId: string) {
     const query = `
-      SELECT id, email, first_name, last_name, status, is_tenant_admin, created_at
-      FROM users
-      WHERE tenant_id = $1
-      ORDER BY created_at DESC;
+      SELECT u.id, u.email, u.first_name, u.last_name, wm.status, wm.is_tenant_admin, wm.joined_at as created_at
+      FROM users u
+      JOIN workspace_memberships wm ON u.id = wm.user_id
+      WHERE wm.tenant_id = $1
+      ORDER BY wm.joined_at DESC;
     `;
     const res = await pool.query(query, [tenantId]);
     return res.rows;
   }
 
+  // FIXED: Joined workspace_memberships to verify tenant connection
   static async getUserByEmailAndTenant(email: string, tenantId: string) {
-    const res = await pool.query('SELECT * FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId]);
+    const query = `
+      SELECT u.*, wm.status, wm.is_tenant_admin, wm.tenant_id 
+      FROM users u
+      JOIN workspace_memberships wm ON u.id = wm.user_id
+      WHERE u.email = $1 AND wm.tenant_id = $2;
+    `;
+    const res = await pool.query(query, [email, tenantId]);
     return res.rows[0];
   }
 
+  // FIXED: Joined workspace_memberships to verify tenant connection
   static async getUserByIdAndTenant(userId: string, tenantId: string) {
-    const query = 'SELECT id, tenant_id, email, first_name, last_name, status, is_tenant_admin FROM users WHERE id = $1 AND tenant_id = $2';
+    const query = `
+      SELECT u.id, wm.tenant_id, u.email, u.first_name, u.last_name, wm.status, wm.is_tenant_admin 
+      FROM users u 
+      JOIN workspace_memberships wm ON u.id = wm.user_id 
+      WHERE u.id = $1 AND wm.tenant_id = $2;
+    `;
     const res = await pool.query(query, [userId, tenantId]);
     return res.rows[0];
   }
 
+  // FIXED: Updated target table to workspace_memberships
   static async updateUserStatus(userId: string, tenantId: string, status: 'PENDING' | 'ACTIVE' | 'SUSPENDED') {
     const query = `
-      UPDATE users SET status = $3, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND tenant_id = $2
-      RETURNING id, status;
+      UPDATE workspace_memberships 
+      SET status = $3 
+      WHERE user_id = $1 AND tenant_id = $2
+      RETURNING user_id as id, status;
     `;
     const res = await pool.query(query, [userId, tenantId, status]);
     return res.rows[0];
@@ -182,13 +255,15 @@ export class QueryService {
     await pool.query(query, [userId, moduleId, assignedBy, accessLevel]);
   }
 
+  // FIXED: Checked status via workspace_memberships instead of users table
   static async getUserAccessibleModules(userId: string, tenantId: string) {
     const query = `
       SELECT m.id, m.name, m.description 
       FROM modules m
       INNER JOIN user_modules um ON m.id = um.module_id
       INNER JOIN users u ON um.user_id = u.id
-      WHERE u.id = $1 AND u.tenant_id = $2 AND u.status = 'ACTIVE';
+      INNER JOIN workspace_memberships wm ON u.id = wm.user_id
+      WHERE u.id = $1 AND wm.tenant_id = $2 AND wm.status = 'ACTIVE';
     `;
     const res = await pool.query(query, [userId, tenantId]);
     return res.rows;
@@ -203,7 +278,6 @@ export class QueryService {
     await pool.query(query, [tenantId, actorId, eventType, ip, userAgent, JSON.stringify(metadata)]);
   }
 
-  // Fetch audit logs with the actor's email attached
   static async getAuditLogs(tenantId: string, limit: number = 50) {
     const res = await pool.query(
       `SELECT a.id, a.event_type, a.ip_address, a.created_at, a.metadata, u.email as actor_email 
@@ -229,7 +303,6 @@ export class QueryService {
   }
 
   // --- RBAC (ROLES & PERMISSIONS) ---
-
   static async getRoles(tenantId: string) {
     const res = await pool.query(
       `SELECT id, name, description, created_at 
@@ -262,9 +335,6 @@ export class QueryService {
     return res.rows[0];
   }
 
-  // --- ROLE ASSIGNMENTS ---
-
-  // Assign a role to a user
   static async assignUserRole(userId: string, roleId: string, assignedBy: string) {
     const query = `
       INSERT INTO user_roles (user_id, role_id, assigned_by)
@@ -274,44 +344,45 @@ export class QueryService {
     await pool.query(query, [userId, roleId, assignedBy]);
   }
 
-  // Fetch users assigned to a specific role
+  // FIXED: Joined workspace_memberships to verify tenant filtering
   static async getRoleUsers(tenantId: string, roleId: string) {
     const res = await pool.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.status 
+      `SELECT u.id, u.email, u.first_name, u.last_name, wm.status 
        FROM users u
        JOIN user_roles ur ON u.id = ur.user_id
-       WHERE ur.role_id = $1 AND u.tenant_id = $2
+       JOIN workspace_memberships wm ON u.id = wm.user_id
+       WHERE ur.role_id = $1 AND wm.tenant_id = $2
        ORDER BY u.first_name ASC`,
       [roleId, tenantId]
     );
     return res.rows;
   }
 
-  // Revoke a role from a user
   static async revokeUserRole(userId: string, roleId: string) {
     const query = `DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`;
     await pool.query(query, [userId, roleId]);
   }
   
-  // --- REVERSE MODULE MAPPING ---
-
+  // FIXED: Joined workspace_memberships to verify tenant filtering
   static async getModuleUsers(tenantId: string, moduleId: string) {
     const res = await pool.query(
-      `SELECT u.id, u.email, u.first_name, u.last_name, u.status, um.assigned_at, um.access_level
+      `SELECT u.id, u.email, u.first_name, u.last_name, wm.status, um.assigned_at, um.access_level
        FROM users u
        JOIN user_modules um ON u.id = um.user_id
-       WHERE um.module_id = $1 AND u.tenant_id = $2
+       JOIN workspace_memberships wm ON u.id = wm.user_id
+       WHERE um.module_id = $1 AND wm.tenant_id = $2
        ORDER BY u.first_name ASC`,
       [moduleId, tenantId]
     );
     return res.rows;
   }
 
+  // FIXED: Subquery targets workspace_memberships instead of users table
   static async revokeModuleAccess(tenantId: string, userId: string, moduleId: string) {
     const res = await pool.query(
       `DELETE FROM user_modules 
        WHERE user_id = $1 AND module_id = $2 
-       AND user_id IN (SELECT id FROM users WHERE tenant_id = $3)
+       AND user_id IN (SELECT user_id FROM workspace_memberships WHERE tenant_id = $3)
        RETURNING *`,
       [userId, moduleId, tenantId]
     );
@@ -319,9 +390,7 @@ export class QueryService {
   }
 
   // --- SECURITY & SESSIONS ---
-
   static async getActiveSessions(tenantId: string) {
-    // Only fetch tokens that are not revoked and haven't expired yet
     const res = await pool.query(
       `SELECT r.id, r.created_at, r.expires_at, u.email, u.first_name, u.last_name
        FROM refresh_tokens r
@@ -345,7 +414,6 @@ export class QueryService {
   }
 
   // --- WORKSPACE SETTINGS (TENANT) ---
-
   static async getTenantSettings(tenantId: string) {
     const res = await pool.query(
       `SELECT id, company_name AS name, custom_domain, logo_url, theme_color, created_at 

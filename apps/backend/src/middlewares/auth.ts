@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CryptoService } from '../services/crypto.service.js';
 import { redisClient } from '../db/redis.js';
+import { pool } from '../db/index.js'
 
 declare global {
   namespace Express {
@@ -64,3 +65,29 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
 
   next();
 };
+
+// THE NEW CONTROL PLANE GUARD
+export async function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // Double-check the database to ensure privileges weren't revoked mid-session
+  try {
+    const dbCheck = await pool.query(
+      'SELECT is_superadmin FROM users WHERE id = $1', 
+      [req.user.userId]
+    );
+
+    if (dbCheck.rows.length === 0 || !dbCheck.rows[0].is_superadmin) {
+      // Log the unauthorized attempt to the control plane
+      console.warn(`CRITICAL: User ${req.user.userId} attempted to access SuperAdmin routes.`);
+      return res.status(403).json({ error: 'Platform access denied. SuperAdmin clearance required.' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('SuperAdmin Verification Error:', error);
+    return res.status(500).json({ error: 'Internal server error during authorization check' });
+  }
+}

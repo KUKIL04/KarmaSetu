@@ -12,6 +12,7 @@ import tenantRouter from './routes/tenant.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
 import userRouter from './routes/user.js';
+import superadminRouter from './routes/superadmin.js';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/v1/otp', otpRouter);
 app.use('/api/v1/tenant', tenantRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/platform', superadminRouter);
 app.use('/api/v1/user', userRouter);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'auth-backend' });

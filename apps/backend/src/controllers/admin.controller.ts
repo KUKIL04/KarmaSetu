@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 
 export class AdminController {
-  // Generate Invite Links
+  // Generate Invite Links & Handle Global Identity Routing
   static async inviteUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const tenantId = req.user?.tenantId;
@@ -19,7 +19,47 @@ export class AdminController {
       if (!tenantId || !invitedBy) return res.status(400).json({ error: 'User context invalid' });
       if (!email) return res.status(400).json({ error: 'Recipient email is required' });
 
-      // Generate token and record hash
+      // 1. SMART CHECK: Does this human already exist in the global matrix?
+      const existingUser = await pool.query('SELECT id, first_name FROM users WHERE email = $1', [email]);
+
+      if (existingUser.rows.length > 0) {
+        const userId = existingUser.rows[0].id;
+
+        // Check if they are already in THIS specific workspace
+        const membershipCheck = await pool.query(
+          'SELECT status FROM workspace_memberships WHERE user_id = $1 AND tenant_id = $2',
+          [userId, tenantId]
+        );
+
+        if (membershipCheck.rows.length > 0) {
+          return res.status(400).json({ 
+            error: `User is already associated with this workspace (Status: ${membershipCheck.rows[0].status}).` 
+          });
+        }
+
+        // Instantly map them to this workspace as PENDING (Waiting Room)
+        await pool.query(`
+          INSERT INTO workspace_memberships (user_id, tenant_id, status)
+          VALUES ($1, $2, 'PENDING')
+        `, [userId, tenantId]);
+
+        // Fetch tenant branding for the email
+        const tenantRecord = await QueryService.getTenantSettings(tenantId);
+
+        // SEND WORKSPACE ADDED EMAIL (Assuming this method exists in your EmailService)
+        if (EmailService.sendWorkspaceAddedNotification) {
+            await EmailService.sendWorkspaceAddedNotification(email, tenantRecord?.name || 'A new workspace');
+        }
+
+        await QueryService.logEvent(tenantId, invitedBy, 'USER_ADDED_TO_WAITING_ROOM', req.ip || '127.0.0.1', req.headers['user-agent'] || 'unknown', { targetUserId: userId });
+
+        return res.json({ 
+          existingUser: true, 
+          message: 'User recognized globally! They have been securely added to your Waiting Room.' 
+        });
+      }
+
+      // 2. NEW USER: Proceed with standard token generation
       const rawToken = CryptoService.generateRandomToken();
       const tokenHash = CryptoService.hashToken(rawToken);
 
@@ -28,25 +68,18 @@ export class AdminController {
 
       await QueryService.createInvitation(tenantId, email, tokenHash, invitedBy, expiresAt);
 
-      const mockInviteLink = `http://localhost:3000/register?token=${rawToken}`;
+      const mockInviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/register?token=${rawToken}`;
 
       // SEND THE INVITE EMAIL
       await EmailService.sendInviteEmail(email, mockInviteLink);
 
-      await QueryService.logEvent(
-        tenantId,
-        invitedBy,
-        'USER_INVITED',
-        req.ip || '127.0.0.1',
-        req.headers['user-agent'] || 'unknown',
-        { email, expiresAt }
-      );
+      await QueryService.logEvent(tenantId, invitedBy, 'USER_INVITED', req.ip || '127.0.0.1', req.headers['user-agent'] || 'unknown', { email, expiresAt });
 
-      // Return the token path to output
       return res.status(201).json({
         success: true,
+        existingUser: false,
         inviteLink: mockInviteLink,
-        expiresAt,
+        message: 'Invitation link generated and dispatched.'
       });
     } catch (err) {
       next(err);

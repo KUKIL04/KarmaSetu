@@ -1,8 +1,25 @@
-import { publicClient } from './client';
+import { publicClient, apiClient } from './client';
 
 export const AuthAPI = {
-  login: async (email: string, password: string, tenantId: string) => {
-    const response = await publicClient.post('/auth/login', { email, password, tenantId });
+  // Step 1: Initial authentication
+  login: async (email: string, password: string) => {
+    const response = await publicClient.post('/auth/login', { email, password });
+    return response.data; // Returns { accessToken, ... } OR { requiresTenantSelection: true, tempToken, tenants }
+  },
+
+  // Step 2: Workspace resolution (if user belongs to multiple)
+  selectWorkspace: async (tempToken: string, tenantId: string, oldRefreshToken?: string) => {
+    const response = await publicClient.post('/auth/select-workspace', { 
+      tempToken, 
+      tenantId, 
+      oldRefreshToken 
+    });
+    return response.data;
+  },
+
+  // NEW: Fetch workspaces for the authenticated user
+  getAvailableWorkspaces: async () => {
+    const response = await apiClient.get('/auth/workspaces');
     return response.data;
   },
 
