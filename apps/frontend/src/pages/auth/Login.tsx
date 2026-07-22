@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { InputField } from '../../components/ui/InputField';
 import { AuthAPI } from '../../api/auth.api';
 import { useAuth } from '../../hooks/useAuth';
-import { Loader2, Mail, Lock, Building2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Loader2, Mail, Lock, Building2, ArrowRight, ArrowLeft, ShieldAlert, AlertTriangle } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 interface TenantOption {
@@ -17,10 +17,10 @@ export default function Login() {
   const location = useLocation();
   const { login } = useAuth();
   
-  // Step Management
-  const [step, setStep] = useState<'CREDENTIALS' | 'WORKSPACE_SELECT'>('CREDENTIALS');
+  const [step, setStep] = useState<'CREDENTIALS' | 'WORKSPACE_SELECT' | 'FROZEN'>('CREDENTIALS');
   const [availableTenants, setAvailableTenants] = useState<TenantOption[]>([]);
   const [tempToken, setTempToken] = useState<string | null>(null);
+  const [frozenMessage, setFrozenMessage] = useState('');
 
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +28,6 @@ export default function Login() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  // Handle Step 1: Verify Credentials
   const handleCredentialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -36,24 +35,26 @@ export default function Login() {
     try {
       const response = await AuthAPI.login(formData.email, formData.password);
       
-      // Check if backend requires workspace selection
       if (response.requiresTenantSelection) {
         setAvailableTenants(response.tenants);
         setTempToken(response.tempToken);
         setStep('WORKSPACE_SELECT');
       } else {
-        // Only 1 workspace, backend auto-logged them in
         login(response.accessToken, response.refreshToken, response.user);
         navigate(location.state?.from?.pathname || '/', { replace: true });
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Invalid credentials');
+      if (err.response?.data?.error === 'WORKSPACE_FROZEN') {
+        setFrozenMessage(err.response?.data?.message || 'Your workspace access has been suspended.');
+        setStep('FROZEN');
+      } else {
+        setError(err.response?.data?.error || 'Invalid credentials');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle Step 2: Finalize Workspace Selection
   const handleWorkspaceSelect = async (tenantId: string) => {
     if (!tempToken) return;
     setError('');
@@ -63,8 +64,13 @@ export default function Login() {
       login(response.accessToken, response.refreshToken, response.user);
       navigate(location.state?.from?.pathname || '/', { replace: true });
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to access workspace');
-      setStep('CREDENTIALS'); // Kick them back if the temp token expired
+      if (err.response?.data?.error === 'WORKSPACE_FROZEN') {
+        setFrozenMessage(err.response?.data?.message || 'Your workspace access has been suspended.');
+        setStep('FROZEN');
+      } else {
+        setError(err.response?.data?.error || 'Failed to access workspace');
+        setStep('CREDENTIALS');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -74,13 +80,15 @@ export default function Login() {
     <AuthLayout>
       <div className="max-w-[540px] w-full mx-auto">
         <div className="mb-8 text-center">
-            <h2 className="text-xl font-bold text-slate-700">
-              {step === 'CREDENTIALS' ? 'Welcome Back' : 'Select Workspace'}
+            <h2 className={`text-xl font-bold ${step === 'FROZEN' ? 'text-red-600' : 'text-slate-700'}`}>
+              {step === 'CREDENTIALS' && 'Welcome Back'}
+              {step === 'WORKSPACE_SELECT' && 'Select Workspace'}
+              {step === 'FROZEN' && 'Access Suspended'}
             </h2>
-            <p className="text-sm text-slate-500 mt-1.5">
-              {step === 'CREDENTIALS' 
-                ? 'Authenticate to access your secure workspace.' 
-                : `Found ${availableTenants.length} environments linked to this identity.`}
+            <p className="text-sm text-slate-500 mt-1.5 font-medium">
+              {step === 'CREDENTIALS' && 'Authenticate to access your secure workspace.'}
+              {step === 'WORKSPACE_SELECT' && `Found ${availableTenants.length} environments linked to this identity.`}
+              {step === 'FROZEN' && 'Your organization\'s network access has been revoked.'}
             </p>
         </div>
 
@@ -92,7 +100,6 @@ export default function Login() {
 
         <div className="inner-depth p-6 sm:p-8 relative overflow-hidden">
           
-          {/* STEP 1: CREDENTIALS */}
           {step === 'CREDENTIALS' && (
             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
               <form onSubmit={handleCredentialSubmit} className="space-y-6">
@@ -112,20 +119,22 @@ export default function Login() {
                 </button>
               </form>
 
-              <div className="mt-8 pt-6 border-t border-slate-300/50 text-center">
-                <p className="text-sm text-slate-500 font-medium">Is your company new to the platform?</p>
+              {/* UPDATED: Inline Provisioning Layout */}
+              <div className="mt-8 pt-6 border-t border-slate-300/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-sm text-slate-500 font-medium text-center sm:text-left">
+                  New to the platform?
+                </p>
                 <Link 
                   to="/onboard-workspace" 
-                  className="mt-4 inline-flex items-center justify-center w-full px-6 py-3.5 bg-lightgray hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs uppercase tracking-widest transition-colors shadow-inner border border-slate-200/50"
+                  className="inline-flex items-center justify-center w-full sm:w-auto px-5 py-2.5 bg-lightgray hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs uppercase tracking-widest transition-colors shadow-inner border border-slate-200/50 shrink-0"
                 >
                   <Building2 className="w-4 h-4 mr-2" />
-                  Provision New Organization
+                  Provision Workspace
                 </Link>
               </div>
             </div>
           )}
 
-          {/* STEP 2: WORKSPACE SELECTION */}
           {step === 'WORKSPACE_SELECT' && (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 max-h-[400px] overflow-y-auto neumorphic-scrollbar px-1">
               {availableTenants.map((tenant) => (
@@ -159,6 +168,52 @@ export default function Login() {
                   <span>Use Different Account</span>
                 </button>
               </div>
+            </div>
+          )}
+
+          {step === 'FROZEN' && (
+            <div className="animate-in zoom-in-95 duration-300 text-center py-6">
+              <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+              
+              <div className="flex justify-center mb-6">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full animate-ping opacity-20 bg-red-500"></div>
+                  <div className="bg-lightgray p-4 rounded-full border border-red-100 shadow-sm relative z-10">
+                    <ShieldAlert className="w-10 h-10 text-red-500" />
+                  </div>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-slate-800 mb-3 tracking-tight">Organization Suspended</h3>
+              
+              <div className="bg-red-50/50 border border-red-100 p-4 rounded-2xl mb-6 text-left">
+                <div className="flex items-start">
+                  <AlertTriangle className="w-5 h-5 text-red-500 mr-3 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-slate-700 font-bold mb-1">
+                      {frozenMessage}
+                    </p>
+                    <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                      This typically occurs due to unresolved billing issues, policy violations, or an explicit mandate by your platform administrator.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-500 font-semibold mb-8 px-4">
+                If you believe this is an error, please contact your internal IT department or corporate administrator.
+              </p>
+
+              <button 
+                onClick={() => {
+                  setStep('CREDENTIALS');
+                  setFormData({ email: '', password: '' });
+                }}
+                className="w-full flex items-center justify-center space-x-2 py-4 text-slate-600 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 font-bold rounded-2xl text-xs tracking-widest uppercase transition-all"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                <span>Return to Login</span>
+              </button>
             </div>
           )}
 

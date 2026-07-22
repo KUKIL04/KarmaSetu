@@ -1,11 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { InputField } from '../../components/ui/InputField';
-import { OtpActionInput } from '../../components/ui/OtpActionInput';
 import { TenantAPI } from '../../api/tenant.api';
 import { AuthAPI } from '../../api/auth.api'; 
-import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin, UploadCloud } from 'lucide-react';
+import { Loader2, Building2, ShieldCheck, Copy, Check, Mail, Phone, Lock, User, Globe, Palette, Calendar, ArrowRight, ArrowLeft, Briefcase, MapPin, UploadCloud, KeyRound, CheckCircle2 } from 'lucide-react';
 import AuthLayout from '../../components/layout/AuthLayout';
 
 export default function TenantOnboarding() {
@@ -20,11 +19,24 @@ export default function TenantOnboarding() {
     securityQ2: 'Who is your favorite player?', securityA2: '',
   });
 
+  // OTP States for Email & Phone
+  const [emailOtp, setEmailOtp] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  
   const [isEmailOtpSent, setIsEmailOtpSent] = useState(false);
   const [isPhoneOtpSent, setIsPhoneOtpSent] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-  const [isGlobalIdentity, setIsGlobalIdentity] = useState(false); // NEW STATE
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+
+  // Timers & Resend States
+  const [emailTimeLeft, setEmailTimeLeft] = useState(60);
+  const [phoneTimeLeft, setPhoneTimeLeft] = useState(60);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [isResendingPhone, setIsResendingPhone] = useState(false);
+
+  const [isGlobalIdentity, setIsGlobalIdentity] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +45,20 @@ export default function TenantOnboarding() {
   const [copied, setCopied] = useState(false);
 
   const areContactsVerified = isEmailVerified && (isPhoneVerified || isGlobalIdentity);
+
+  // Email Timer Countdown
+  useEffect(() => {
+    if (!isEmailOtpSent || emailTimeLeft <= 0 || isEmailVerified) return;
+    const timer = setInterval(() => setEmailTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [isEmailOtpSent, emailTimeLeft, isEmailVerified]);
+
+  // Phone Timer Countdown
+  useEffect(() => {
+    if (!isPhoneOtpSent || phoneTimeLeft <= 0 || isPhoneVerified) return;
+    const timer = setInterval(() => setPhoneTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [isPhoneOtpSent, phoneTimeLeft, isPhoneVerified]);
 
   // Drag and Drop Handler
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -72,25 +98,49 @@ export default function TenantOnboarding() {
   };
 
   const handleSendOtp = async (target: string, type: 'EMAIL' | 'PHONE') => {
-    await AuthAPI.sendOtp(target, type);
-    if (type === 'EMAIL') setIsEmailOtpSent(true);
-    if (type === 'PHONE') setIsPhoneOtpSent(true);
+    setError('');
+    try {
+      await AuthAPI.sendOtp(target, type);
+      if (type === 'EMAIL') {
+        setIsEmailOtpSent(true);
+        setEmailTimeLeft(60);
+      }
+      if (type === 'PHONE') {
+        setIsPhoneOtpSent(true);
+        setPhoneTimeLeft(60);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || `Failed to send ${type.toLowerCase()} code.`);
+    }
   };
 
   const handleVerifyOtp = async (target: string, type: 'EMAIL' | 'PHONE', otp: string) => {
-    const response = await AuthAPI.verifyOtp(target, type, otp);
-    if (response.success) {
-      if (type === 'EMAIL') {
-        setIsEmailVerified(true);
-        if (response.userExists) {
-          setIsGlobalIdentity(true);
-          setIsPhoneVerified(true); // Bypass phone req for existing users
+    setError('');
+    if (type === 'EMAIL') setIsVerifyingEmail(true);
+    if (type === 'PHONE') setIsVerifyingPhone(true);
+
+    try {
+      const response = await AuthAPI.verifyOtp(target, type, otp);
+      if (response.success) {
+        if (type === 'EMAIL') {
+          setIsEmailVerified(true);
+          setEmailTimeLeft(0);
+          if (response.userExists) {
+            setIsGlobalIdentity(true);
+            setIsPhoneVerified(true); // Bypass phone req for existing global identities
+          }
+        }
+        if (type === 'PHONE') {
+          setIsPhoneVerified(true);
+          setPhoneTimeLeft(0);
         }
       }
-      if (type === 'PHONE') setIsPhoneVerified(true);
-      return true;
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Invalid or expired code.');
+    } finally {
+      if (type === 'EMAIL') setIsVerifyingEmail(false);
+      if (type === 'PHONE') setIsVerifyingPhone(false);
     }
-    return false;
   };
 
   const validateStep1 = () => {
@@ -350,15 +400,146 @@ export default function TenantOnboarding() {
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6 p-6 border border-slate-300/50 rounded-3xl bg-lightgray/30 shadow-inner">
+                  
+                  {/* EMAIL VERIFICATION BLOCK WITH TIMER & OTP INPUT */}
                   <div className="space-y-4">
-                    <InputField label="E-mail" type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} required disabled={isEmailOtpSent || isEmailVerified} icon={<Mail />} className={isEmailOtpSent || isEmailVerified ? "opacity-70 cursor-not-allowed" : ""} />
-                    <OtpActionInput label="Email Verification" targetValue={formData.adminEmail} onSendOtp={(target) => handleSendOtp(target, 'EMAIL')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'EMAIL', otp)} required />
+                    <InputField label="E-mail" type="email" name="adminEmail" value={formData.adminEmail} onChange={handleChange} required disabled={isEmailVerified} icon={<Mail />} className={isEmailVerified ? "opacity-70 cursor-not-allowed" : ""} />
+                    
+                    <div className="p-4 border border-slate-300/50 rounded-2xl bg-lightgray/50">
+                      {!isEmailVerified ? (
+                        <>
+                          <div className="flex gap-3">
+                            <div className="relative flex-1">
+                              <KeyRound className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+                              <input
+                                type="text"
+                                maxLength={6}
+                                placeholder={!isEmailOtpSent ? "Click send code first" : "Enter 6-digit code"}
+                                value={emailOtp}
+                                onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, ''))}
+                                disabled={!isEmailOtpSent}
+                                className="embossed-input w-full pl-10 pr-4 py-3 rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none disabled:opacity-50"
+                              />
+                            </div>
+                            
+                            {!isEmailOtpSent ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSendOtp(formData.adminEmail, 'EMAIL')}
+                                disabled={!formData.adminEmail}
+                                className="shrink-0 bg-gamboge-600 hover:bg-gamboge-500 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-widest transition-colors flex items-center justify-center disabled:opacity-50"
+                              >
+                                Send Code
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleVerifyOtp(formData.adminEmail, 'EMAIL', emailOtp)}
+                                disabled={emailOtp.length < 4 || isVerifyingEmail}
+                                className="shrink-0 bg-gamboge-600 hover:bg-gamboge-500 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-widest transition-colors flex items-center justify-center disabled:opacity-50"
+                              >
+                                {isVerifyingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Email Resend Timer Logic */}
+                          {isEmailOtpSent && (
+                            <div className="mt-2 pr-1 text-right">
+                              {emailTimeLeft > 0 ? (
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                  Resend in 00:{emailTimeLeft.toString().padStart(2, '0')}
+                                </span>
+                              ) : (
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleSendOtp(formData.adminEmail, 'EMAIL')} 
+                                  disabled={isResendingEmail}
+                                  className="text-[11px] font-bold text-gamboge-600 hover:text-gamboge-700 uppercase tracking-widest transition-colors disabled:opacity-50"
+                                >
+                                  {isResendingEmail ? 'Sending...' : 'Resend Code'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center text-xs font-bold text-green-600 bg-green-50 px-4 py-3 rounded-xl border border-green-200 uppercase tracking-widest">
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Email Verified
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
+                  {/* PHONE VERIFICATION BLOCK WITH TIMER & OTP INPUT */}
                   {!isGlobalIdentity && (
                     <div className="space-y-4">
-                      <InputField label="Mobile No." name="adminMobile" value={formData.adminMobile} onChange={handleChange} required disabled={isPhoneOtpSent || isPhoneVerified} icon={<Phone />} className={isPhoneOtpSent || isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
-                      <OtpActionInput label="Mobile Verification" targetValue={formData.adminMobile} onSendOtp={(target) => handleSendOtp(target, 'PHONE')} onVerifyOtp={(target, otp) => handleVerifyOtp(target, 'PHONE', otp)} required />
+                      <InputField label="Mobile No." name="adminMobile" value={formData.adminMobile} onChange={handleChange} required disabled={isPhoneVerified} icon={<Phone />} className={isPhoneVerified ? "opacity-70 cursor-not-allowed" : ""} />
+                      
+                      <div className="p-4 border border-slate-300/50 rounded-2xl bg-lightgray/50">
+                        {!isPhoneVerified ? (
+                          <>
+                            <div className="flex gap-3">
+                              <div className="relative flex-1">
+                                <KeyRound className="w-4 h-4 absolute left-4 top-3.5 text-slate-400" />
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  placeholder={!isPhoneOtpSent ? "Click send code first" : "Enter 6-digit code"}
+                                  value={phoneOtp}
+                                  onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                                  disabled={!isPhoneOtpSent}
+                                  className="embossed-input w-full pl-10 pr-4 py-3 rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 outline-none disabled:opacity-50"
+                                />
+                              </div>
+                              
+                              {!isPhoneOtpSent ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendOtp(formData.adminMobile, 'PHONE')}
+                                  disabled={!formData.adminMobile}
+                                  className="shrink-0 bg-gamboge-600 hover:bg-gamboge-500 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-widest transition-colors flex items-center justify-center disabled:opacity-50"
+                                >
+                                  Send Code
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleVerifyOtp(formData.adminMobile, 'PHONE', phoneOtp)}
+                                  disabled={phoneOtp.length < 4 || isVerifyingPhone}
+                                  className="shrink-0 bg-gamboge-600 hover:bg-gamboge-500 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-widest transition-colors flex items-center justify-center disabled:opacity-50"
+                                >
+                                  {isVerifyingPhone ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Phone Resend Timer Logic */}
+                            {isPhoneOtpSent && (
+                              <div className="mt-2 pr-1 text-right">
+                                {phoneTimeLeft > 0 ? (
+                                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                                    Resend in 00:{phoneTimeLeft.toString().padStart(2, '0')}
+                                  </span>
+                                ) : (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleSendOtp(formData.adminMobile, 'PHONE')} 
+                                    disabled={isResendingPhone}
+                                    className="text-[11px] font-bold text-gamboge-600 hover:text-gamboge-700 uppercase tracking-widest transition-colors disabled:opacity-50"
+                                  >
+                                    {isResendingPhone ? 'Sending...' : 'Resend Code'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex items-center justify-center text-xs font-bold text-green-600 bg-green-50 px-4 py-3 rounded-xl border border-green-200 uppercase tracking-widest">
+                            <CheckCircle2 className="w-4 h-4 mr-2" /> Mobile Verified
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

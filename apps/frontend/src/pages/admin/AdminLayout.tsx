@@ -83,7 +83,7 @@ export default function AdminLayout() {
 
   const navLinks = [
     { to: "/admin", icon: PlusCircle, label: "Provisioning", end: true },
-    { to: "/admin/directory", icon: Users, label: "Directory" },
+    { to: "/admin/directory", icon: Users, label: "Users" },
     { to: "/admin/roles", icon: Key, label: "Access Roles" },
     { to: "/admin/modules", icon: Layers, label: "Module Map" },
     { to: "/admin/audits", icon: Activity, label: "System Audits" },

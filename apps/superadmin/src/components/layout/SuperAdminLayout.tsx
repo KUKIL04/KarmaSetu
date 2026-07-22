@@ -37,7 +37,7 @@ export default function SuperAdminLayout() {
       label: 'Control Plane',
       items: [
         { name: 'Feature Flags', path: '/flags', icon: Flag, placeholder: true },
-        { name: 'Audit Ledger', path: '/audit', icon: Shield },
+        { name: 'Audit Ledger', path: '/audits', icon: Shield },
       ]
     }
   ];

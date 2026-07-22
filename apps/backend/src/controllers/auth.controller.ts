@@ -43,6 +43,14 @@ export class AuthController {
         isAdmin: true,
       });
 
+      // Generate and store the SuperAdmin Refresh Token
+      const rawRefreshToken = CryptoService.generateRandomToken();
+      const hashedRefresh = CryptoService.hashToken(rawRefreshToken);
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 7);
+
+      await QueryService.saveRefreshToken(user.id, 'SYSTEM', hashedRefresh, expiry);
+
       // Log the login event directly to the highly secure superadmin_audit_logs
       await pool.query(
         `INSERT INTO superadmin_audit_logs (actor_id, action, ip_address) VALUES ($1, $2, $3)`,
@@ -51,12 +59,13 @@ export class AuthController {
 
       return res.json({
         accessToken,
+        refreshToken: rawRefreshToken,
         user: {
           id: user.id,
           email: user.email,
           firstName: user.first_name,
           lastName: user.last_name,
-          isSuperAdmin: true, // Crucial for the frontend context
+          isSuperAdmin: true,
         },
       });
     } catch (err) {
@@ -80,8 +89,39 @@ export class AuthController {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Use the first workspace found to securely process the password check
+      // PARTITION WORKSPACES
+      const activeWorkspaces = workspaces.filter(w => w.tenant_status === 'ACTIVE');
+
+      // If ALL their workspaces are frozen, verify their password and then reject them immediately
+      if (activeWorkspaces.length === 0) {
+        const match = await CryptoService.verifyPassword(password, workspaces[0].password_hash);
+        if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+
+        // Extract the actual company names
+        const tenantNames = workspaces.map(w => w.company_name).join(', ');
+        
+        // Dynamically format the message based on how many workspaces they have
+        const message = workspaces.length === 1
+          ? `Your workspace (${tenantNames}) has been suspended.`
+          : `Your associated workspaces (${tenantNames}) have been suspended.`;
+
+        return res.status(403).json({ 
+          error: 'WORKSPACE_FROZEN', 
+          message
+        });
+      }
+
+      // Proceed ONLY with the first ACTIVE workspace
       const targetRecord = workspaces[0];
+
+      // 1. Check Global Platform Blacklist FIRST
+      const blacklistKey = `bl:user:${targetRecord.user_id}`;
+      const isBlacklisted = await redisClient.get(blacklistKey);
+      if (isBlacklisted) {
+        return res.status(403).json({ error: 'Access Denied: Your global identity has been suspended by the platform administrator.' });
+      }
+
+      // 2. Check Brute-Force Password Lockout (SEPARATE KEY)
       const lockoutKey = `bl:user:${targetRecord.user_id}`;
       const isLocked = await redisClient.get(lockoutKey);
       
@@ -106,6 +146,7 @@ export class AuthController {
         return res.status(401).json({ error: `Invalid credentials. ${3 - attempts} attempts remaining.` });
       }
 
+      // Clear the brute-force tracking keys upon successful login
       await redisClient.del(lockoutKey);
       await redisClient.del(`login_attempts:${targetRecord.user_id}`);
 
@@ -117,7 +158,7 @@ export class AuthController {
         return res.json({
           requiresTenantSelection: true,
           tempToken,
-          tenants: workspaces.map(w => ({
+          tenants: activeWorkspaces.map(w => ({
             tenantId: w.tenant_id,
             companyName: w.company_name,
             logoUrl: w.logo_url
@@ -171,6 +212,13 @@ export class AuthController {
       const decoded = CryptoService.verifyTempToken(tempToken);
       if (!decoded || !decoded.userId) {
         return res.status(401).json({ error: 'Session expired. Please log in again.' });
+      }
+
+      // 1.5. Double-check Global Platform Blacklist
+      const blacklistKey = `bl:user:${decoded.userId}`;
+      const isBlacklisted = await redisClient.get(blacklistKey);
+      if (isBlacklisted) {
+        return res.status(403).json({ error: 'Access Denied: Your global identity has been suspended by the platform administrator.' });
       }
 
       // 2. Verify the user actually belongs to the requested workspace
@@ -229,11 +277,12 @@ export class AuthController {
       }
 
       // Fetch all workspaces this global user belongs to
-      // (You will need to add getTenantsByUserId to your QueryService)
       const workspaces = await QueryService.getTenantsByUserId(userId);
 
-      // Clever UI Logic: Filter out the workspace they are currently logged into
-      const availableWorkspaces = workspaces.filter(w => w.tenant_id !== currentTenantId);
+      // Filter out the current workspace AND any workspaces that are FROZEN
+      const availableWorkspaces = workspaces.filter(w => 
+        w.tenant_id !== currentTenantId && w.tenant_status === 'ACTIVE'
+      );
 
       if (availableWorkspaces.length === 0) {
         return res.json({ tempToken: null, tenants: [] });

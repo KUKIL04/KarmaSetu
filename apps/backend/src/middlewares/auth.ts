@@ -36,6 +36,18 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       return res.status(401).json({ error: 'Access token expired or invalid' });
     }
 
+    // --- THE ENTERPRISE KILL SWITCH CHECK ---
+  // If the user isn't the SuperAdmin, check if their workspace is frozen
+  if (decodedPayload.tenantId !== 'SYSTEM') {
+    const isFrozen = await redisClient.get(`tenant:frozen:${decodedPayload.tenantId}`);
+    if (isFrozen) {
+      return res.status(401).json({ 
+        error: 'WORKSPACE_FROZEN', 
+        message: 'This workspace has been suspended by the platform administrator. All API access is denied.' 
+      });
+    }
+  }
+
     // 2. Check the Redis Blacklist using the decoded userId
     // If an admin killed their session, this key will exist
     const isBlacklisted = await redisClient.get(`bl:user:${decodedPayload.userId}`);

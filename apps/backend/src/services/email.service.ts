@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { Telemetry } from '../utils/telemetry.util.js';
 
 export class EmailService {
   private static transporter: nodemailer.Transporter;
@@ -41,19 +42,22 @@ export class EmailService {
   static async sendOtpEmail(to: string, otp: string) {
     try {
       const transporter = await this.getTransporter();
-      const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@karmasetu.com>',
-        to,
-        subject: 'Your Matrix Security Code',
-        text: `Your verification code is: ${otp}. It expires in 10 minutes.`,
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #e49b0f;">Workspace Security</h2>
-            <p>You requested a secure action on your account.</p>
-            <p>Your verification code is: <strong style="font-size: 24px; letter-spacing: 4px;">${otp}</strong></p>
-            <p style="font-size: 12px; color: #64748b; margin-top: 20px;">This code expires in 10 minutes. If you did not request this, please contact your administrator.</p>
-          </div>
-        `
+
+      const info = await Telemetry.track('email', 'send_otp', async() => {
+        return await transporter.sendMail({
+          from: '"Workspace Security" <security@karmasetu.com>',
+          to,
+          subject: 'Your Matrix Security Code',
+          text: `Your verification code is: ${otp}. It expires in 10 minutes.`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #e49b0f;">Workspace Security</h2>
+              <p>You requested a secure action on your account.</p>
+              <p>Your verification code is: <strong style="font-size: 24px; letter-spacing: 4px;">${otp}</strong></p>
+              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">This code expires in 10 minutes. If you did not request this, please contact your administrator.</p>
+            </div>
+          `
+        });
       });
 
       console.log("\n-----------------------------------------");
@@ -70,19 +74,21 @@ export class EmailService {
   static async sendInviteEmail(to: string, inviteLink: string) {
     try {
       const transporter = await this.getTransporter();
-      const info = await transporter.sendMail({
-        from: '"HR Command" <hr@karmasetu.com>',
-        to,
-        subject: 'Invitation to Join Workspace',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #e49b0f;">Welcome to the Team!</h2>
-            <p>You have been invited to set up your corporate workspace account.</p>
-            <a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #e49b0f; color: white; text-decoration: none; font-weight: bold; border-radius: 8px; margin: 20px 0;">Accept Invitation</a>
-            <p style="font-size: 12px; color: #64748b;">This link will expire securely. Do not share it with anyone.</p>
-          </div>
-        `
-      });
+      const info = await Telemetry.track('email', 'send_invite', async() => {
+        return await transporter.sendMail({
+          from: '"HR Command" <hr@karmasetu.com>',
+          to,
+          subject: 'Invitation to Join Workspace',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #e49b0f;">Welcome to the Team!</h2>
+              <p>You have been invited to set up your corporate workspace account.</p>
+              <a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #e49b0f; color: white; text-decoration: none; font-weight: bold; border-radius: 8px; margin: 20px 0;">Accept Invitation</a>
+              <p style="font-size: 12px; color: #64748b;">This link will expire securely. Do not share it with anyone.</p>
+            </div>
+          `
+        });
+      });  
       console.log(`\n📩 Invite sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
     } catch (error) {
       console.error("Failed to send invite email:", error);
@@ -97,20 +103,22 @@ export class EmailService {
       // Construct the standard login link
       const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
       
-      const info = await transporter.sendMail({
-        from: '"HR Command" <hr@karmasetu.com>',
-        to,
-        subject: `You have been added to ${tenantName}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #e49b0f;">Workspace Assignment Update</h2>
-            <p>Your global account has been successfully linked to the <strong>${tenantName}</strong> workspace.</p>
-            <p>You have been placed in the secure Waiting Room. You can log in at any time to check your module provisioning status.</p>
-            <a href="${loginLink}" style="display: inline-block; padding: 12px 24px; background-color: #e49b0f; color: white; text-decoration: none; font-weight: bold; border-radius: 8px; margin: 20px 0;">Log In to Platform</a>
-            <p style="font-size: 12px; color: #64748b;">Powered by KARMASETU</p>
-          </div>
-        `
-      });
+      const info = await Telemetry.track('email', 'send_workspace_added', async () => {
+        return await transporter.sendMail({
+          from: '"HR Command" <hr@karmasetu.com>',
+          to,
+          subject: `You have been added to ${tenantName}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #e49b0f;">Workspace Assignment Update</h2>
+              <p>Your global account has been successfully linked to the <strong>${tenantName}</strong> workspace.</p>
+              <p>You have been placed in the secure Waiting Room. You can log in at any time to check your module provisioning status.</p>
+              <a href="${loginLink}" style="display: inline-block; padding: 12px 24px; background-color: #e49b0f; color: white; text-decoration: none; font-weight: bold; border-radius: 8px; margin: 20px 0;">Log In to Platform</a>
+              <p style="font-size: 12px; color: #64748b;">Powered by KARMASETU</p>
+            </div>
+          `
+        });
+      });  
       console.log(`\n📩 Workspace notification sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
     } catch (error) {
       console.error("Failed to send workspace added notification email:", error);
@@ -121,18 +129,20 @@ export class EmailService {
   static async sendStatusChangeEmail(to: string, newStatus: string) {
     try {
       const transporter = await this.getTransporter();
-      const info = await transporter.sendMail({
-        from: '"Workspace Admin" <admin@karmasetu.com>',
-        to,
-        subject: 'Account Status Update',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #e49b0f;">Account Update</h2>
-            <p>Your workspace account is <strong style="text-transform: uppercase;">${newStatus}</strong></p>
-            <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you have questions, please contact your HR department.</p>
-          </div>
-        `
-      });
+      const info = await Telemetry.track('email', 'send_status_change', async() => {
+        return await transporter.sendMail({
+          from: '"Workspace Admin" <admin@karmasetu.com>',
+          to,
+          subject: 'Account Status Update',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #e49b0f;">Account Update</h2>
+              <p>Your workspace account is <strong style="text-transform: uppercase;">${newStatus}</strong></p>
+              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you have questions, please contact your HR department.</p>
+            </div>
+          `
+        });
+      });  
       console.log(`\n📩 Status update sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
     } catch (error) {
       console.error("Failed to send status email:", error);
@@ -143,19 +153,21 @@ export class EmailService {
   static async sendLockoutClearedEmail(to: string) {
     try {
       const transporter = await this.getTransporter();
-      const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@karmasetu.com>',
-        to,
-        subject: 'Account Unlocked',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #16a34a;">Account Unlocked</h2>
-            <p>Your workspace administrator has successfully cleared your security lockout.</p>
-            <p>You may now return to the login portal and securely access your account.</p>
-            <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you do not remember your password, please use the Forgot Password link on the login screen.</p>
-          </div>
-        `
-      });
+      const info = await Telemetry.track('email', 'send_lockout_cleared', async () => {
+        return await transporter.sendMail({
+          from: '"Workspace Security" <security@karmasetu.com>',
+          to,
+          subject: 'Account Unlocked',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #16a34a;">Account Unlocked</h2>
+              <p>Your workspace administrator has successfully cleared your security lockout.</p>
+              <p>You may now return to the login portal and securely access your account.</p>
+              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you do not remember your password, please use the Forgot Password link on the login screen.</p>
+            </div>
+          `
+        });
+      });  
       console.log(`\n📩 Lockout cleared email sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
     } catch (error) {
       console.error("Failed to send lockout cleared email:", error);
@@ -166,23 +178,82 @@ export class EmailService {
   static async sendForceResetNotification(to: string) {
     try {
       const transporter = await this.getTransporter();
-      const info = await transporter.sendMail({
-        from: '"Workspace Security" <security@karmasetu.com>',
-        to,
-        subject: 'Mandatory Password Reset Required',
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
-            <h2 style="color: #ef4444;">Security Alert: Password Reset Required</h2>
-            <p>Your workspace administrator has invalidated your current password for security reasons.</p>
-            <p><strong>All your active network sessions have been terminated.</strong></p>
-            <p style="margin-top: 20px;">Please navigate to the portal and use the <strong>Forgot Password</strong> link to set up a new secure credential.</p>
-          </div>
-        `
-      });
+      const info = await Telemetry.track('email', 'send_force_reset', async () => {
+          return await transporter.sendMail({
+          from: '"Workspace Security" <security@karmasetu.com>',
+          to,
+          subject: 'Mandatory Password Reset Required',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: #ef4444;">Security Alert: Password Reset Required</h2>
+              <p>Your workspace administrator has invalidated your current password for security reasons.</p>
+              <p><strong>All your active network sessions have been terminated.</strong></p>
+              <p style="margin-top: 20px;">Please navigate to the portal and use the <strong>Forgot Password</strong> link to set up a new secure credential.</p>
+            </div>
+          `
+        });
+      });  
       console.log(`\n📩 Force reset notification sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
     } catch (error) {
       console.error("Failed to send force reset email:", error);
     }
   }
   
+  // --- 7. Tenant Freeze/Activate Notification ---
+  static async sendTenantStatusNotification(to: string, tenantName: string, status: string) {
+    try {
+      const transporter = await this.getTransporter();
+      const isFrozen = status === 'FROZEN';
+      
+      const info = await Telemetry.track('email', 'send_tenant_status', async () => {
+        return await transporter.sendMail({
+          from: '"Platform Security" <security@karmasetu.com>',
+          to,
+          subject: `URGENT: Workspace ${isFrozen ? 'Suspended' : 'Restored'}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: ${isFrozen ? '#ef4444' : '#10b981'};">Workspace ${isFrozen ? 'Suspension' : 'Restoration'} Notice</h2>
+              <p>Your workspace <strong>${tenantName}</strong> has been <strong>${status}</strong> by Platform Administrator.</p>
+              ${isFrozen 
+                ? '<p><strong>All active user sessions have been immediately terminated.</strong> Your API endpoints will now return 403 Forbidden. Please contact enterprise support immediately to resolve this issue.</p>' 
+                : '<p>Network access has been fully restored. Your users may now log in normally.</p>'}
+            </div>
+          `
+        });
+      });
+      console.log(`\n📩 Workspace Status (${status}) sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
+    } catch (error) {
+      console.error("Failed to send workspace status email:", error);
+    }
+  }
+
+  // --- 8. Global Blacklist Notification ---
+  static async sendGlobalBlacklistNotification(to: string, isBlacklisted: boolean) {
+    try {
+      const transporter = await this.getTransporter();
+      const action = isBlacklisted ? 'Suspended' : 'Restored';
+      const color = isBlacklisted ? '#ef4444' : '#10b981';
+
+      const info = await Telemetry.track('email', 'send_global_blacklist', async () => {
+        return await transporter.sendMail({
+          from: '"Platform Security" <security@karmasetu.com>',
+          to,
+          subject: `URGENT: Global Identity ${action}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; color: #334155;">
+              <h2 style="color: ${color};">Identity Network ${action}</h2>
+              <p>Your global platform identity has been <strong>${action.toLowerCase()}</strong> by Platform Administrator.</p>
+              ${isBlacklisted 
+                ? '<p><strong>All your active network sessions across all workspaces have been terminated.</strong> You will no longer be able to access any corporate environments associated with this email address.</p>' 
+                : '<p>Your global network access has been fully restored. You may now log in normally to your associated workspaces.</p>'}
+              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">If you believe this is an error, please contact platform support.</p>
+            </div>
+          `
+        });
+      });
+      console.log(`\n📩 Global Blacklist Status (${action}) sent to ${to}\n🔗 Preview: %s\n`, nodemailer.getTestMessageUrl(info));
+    } catch (error) {
+      console.error("Failed to send global blacklist email:", error);
+    }
+  }
 }

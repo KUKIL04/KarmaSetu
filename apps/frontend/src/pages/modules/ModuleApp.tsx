@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { UserAPI } from '../../api/user.api';
 import { AuthAPI } from '../../api/auth.api';
-import { LayoutGrid, LogOut, User, Component, ShieldCheck, RefreshCw, ArrowRightLeft, Building2, X, ArrowRight } from 'lucide-react';
+import { LayoutGrid, LogOut, User, Component, ShieldCheck, RefreshCw, ArrowRightLeft, Building2, X, ArrowRight, Ban } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function ModuleApp() {
@@ -17,10 +17,15 @@ export default function ModuleApp() {
   const [switchTempToken, setSwitchTempToken] = useState<string | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
   
-  // NEW: State to track if they have multiple workspaces
   const [hasMultipleWorkspaces, setHasMultipleWorkspaces] = useState(false);
 
   useEffect(() => {
+    // If the user is suspended, don't even bother fetching modules
+    if (user?.status === 'SUSPENDED') {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchMyModules = async () => {
       try {
         const data = await UserAPI.getMyModules();
@@ -32,21 +37,18 @@ export default function ModuleApp() {
       }
     };
     fetchMyModules();
-  }, []);
+  }, [user?.status]);
 
-  // NEW: Silently check for other workspaces on mount
   useEffect(() => {
     AuthAPI.getAvailableWorkspaces().then(res => {
       if (res.tenants && res.tenants.length > 0) {
         setHasMultipleWorkspaces(true);
-        // Pre-load the workspaces to make the modal instant
         setAvailableWorkspaces(res.tenants);
         setSwitchTempToken(res.tempToken);
       }
     }).catch(() => console.error("Failed to pre-fetch workspaces"));
   }, []);
 
-  // --- Execute Workspace Switch ---
   const handleWorkspaceSelect = async (tenantId: string) => {
     if (!switchTempToken) return;
     setIsSwitching(true);
@@ -54,12 +56,8 @@ export default function ModuleApp() {
       const oldRefreshToken = localStorage.getItem('refreshToken') || undefined;
       const response = await AuthAPI.selectWorkspace(switchTempToken, tenantId, oldRefreshToken);
       
-      // Update global context with new credentials & instantly refetch branding
       login(response.accessToken, response.refreshToken, response.user);
-      
       setIsSwitchModalOpen(false);
-      
-      // If their status in the new workspace is PENDING, router will catch it on reload
       window.location.reload(); 
     } catch (error) {
       console.error("Failed to switch workspace", error);
@@ -110,7 +108,6 @@ export default function ModuleApp() {
             </Link>
           )}
 
-          {/* WORKSPACE SWITCH BUTTON - Conditionally Rendered */}
           {hasMultipleWorkspaces && (
             <button 
               onClick={() => setIsSwitchModalOpen(true)} 
@@ -131,43 +128,62 @@ export default function ModuleApp() {
 
       {/* Main Content Dashboard */}
       <main className="max-w-7xl mx-auto">
-        <div className="mb-10 pl-2">
-          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-            Welcome Back, {user?.firstName}
-          </h1>
-          <p className="text-slate-500 mt-2 text-sm font-medium tracking-wide">
-            Your account is fully activated. Select an application module below to begin your session.
-          </p>
-        </div>
-
-        {isLoading ? (
-          <div className="text-gamboge-600 font-bold tracking-widest uppercase flex items-center pl-2">
-             <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading workspace modules...
-          </div>
-        ) : modules.length === 0 ? (
-          <div className="embossed-card p-10 text-center max-w-2xl mx-auto mt-16 bg-white/60 backdrop-blur-sm">
-            <div className="inner-depth w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <LayoutGrid className="w-10 h-10 text-slate-400" />
+        {user?.status === 'SUSPENDED' ? (
+          /* SUSPENSION LOCKOUT SCREEN */
+          <div className="embossed-card p-10 text-center max-w-2xl mx-auto mt-16 bg-white/80 backdrop-blur-sm border border-red-100">
+            <div className="inner-depth w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 bg-red-50/50">
+                <Ban className="w-10 h-10 text-red-500 drop-shadow-sm" />
             </div>
-            <h3 className="text-xl font-bold text-slate-700 mb-2">No Modules Assigned</h3>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed">
-              You currently do not have access to any workspace applications. Please contact your administrator to provision access for your role.
+            <h2 className="text-2xl font-extrabold text-slate-800 mb-3 tracking-tight">Workspace Access Revoked</h2>
+            <p className="text-slate-600 text-sm font-medium leading-relaxed mb-6 px-4">
+              Your access privileges for this workspace have been temporarily suspended. You cannot launch modules or access internal data at this time. 
             </p>
+            <div className="inline-flex items-center text-xs font-bold text-slate-500 uppercase tracking-widest bg-lightgray px-6 py-3 rounded-xl shadow-inner border border-slate-200">
+              Please contact your HR department for assistance.
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {modules.map((mod) => (
-              <div key={mod.id} className="embossed-card p-6 cursor-pointer group hover:-translate-y-1 transition-transform duration-300 bg-white/80 backdrop-blur-sm">
-                <div className="w-14 h-14 inner-depth rounded-2xl flex items-center justify-center mb-6 group-hover:bg-lightgray transition-colors border border-slate-100">
-                  <Component className="w-7 h-7 text-gamboge-500 drop-shadow-sm" />
+          /* NORMAL ACTIVE DASHBOARD */
+          <>
+            <div className="mb-10 pl-2">
+              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+                Welcome Back, {user?.firstName}
+              </h1>
+              <p className="text-slate-500 mt-2 text-sm font-medium tracking-wide">
+                Your account is fully activated. Select an application module below to begin your session.
+              </p>
+            </div>
+
+            {isLoading ? (
+              <div className="text-gamboge-600 font-bold tracking-widest uppercase flex items-center pl-2">
+                 <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading workspace modules...
+              </div>
+            ) : modules.length === 0 ? (
+              <div className="embossed-card p-10 text-center max-w-2xl mx-auto mt-16 bg-white/60 backdrop-blur-sm">
+                <div className="inner-depth w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <LayoutGrid className="w-10 h-10 text-slate-400" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">{mod.name}</h3>
-                <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                  {mod.description || 'Access enterprise operations and foundational records for this module.'}
+                <h3 className="text-xl font-bold text-slate-700 mb-2">No Modules Assigned</h3>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                  You currently do not have access to any workspace applications. Please contact your administrator to provision access for your role.
                 </p>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {modules.map((mod) => (
+                  <div key={mod.id} className="embossed-card p-6 cursor-pointer group hover:-translate-y-1 transition-transform duration-300 bg-white/80 backdrop-blur-sm">
+                    <div className="w-14 h-14 inner-depth rounded-2xl flex items-center justify-center mb-6 group-hover:bg-lightgray transition-colors border border-slate-100">
+                      <Component className="w-7 h-7 text-gamboge-500 drop-shadow-sm" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2 tracking-tight">{mod.name}</h3>
+                    <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                      {mod.description || 'Access enterprise operations and foundational records for this module.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 

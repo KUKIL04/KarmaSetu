@@ -3,6 +3,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import SuperAdminLayout from './components/layout/SuperAdminLayout';
 import PlatformOverview from './pages/dashboard/PlatformOverview';
 import TenantList from './pages/tenants/TenantList';
+import TenantDetails from './pages/tenants/TenantDetails';
+import GlobalUsers from './pages/users/GlobalUsers';
+import AuditLedger from './pages/audits/AuditLedger';
+import SystemTelemetry from './pages/dashboard/SystemTelemetry';
 import AdminLogin from './pages/auth/AdminLogin';
 import ProtectedAdminRoute from './components/layout/ProtectedAdminRoute';
 import { AdminAuthProvider } from './hooks/useAdminAuth';
@@ -20,6 +24,10 @@ export default function App() {
             <Route element={<SuperAdminLayout />}>
               <Route path="/" element={<PlatformOverview />} />
               <Route path="/tenants" element={<TenantList />} />
+              <Route path="/tenants/:tenantId" element={<TenantDetails />}/>
+              <Route path="/users" element={<GlobalUsers />} />
+              <Route path="/audits" element={<AuditLedger />} />
+              <Route path="/telemetry" element={<SystemTelemetry />} />
               {/* Future routes: /users, /billing, /security, /audits */}
             </Route>
           </Route>

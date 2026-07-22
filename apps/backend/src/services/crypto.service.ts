@@ -1,6 +1,7 @@
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Telemetry } from '../utils/telemetry.util.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-production-key-change-me';
 const ACCESS_TOKEN_EXPIRY = '15m';
@@ -10,21 +11,25 @@ const TEMP_TOKEN_EXPIRY = '5m';
 export class CryptoService {
   // Hash passwords securely using Argon2id parameters
   static async hashPassword(password: string): Promise<string> {
-    return await argon2.hash(password, {
-      type: argon2.argon2id,
-      memoryCost: 65536, // 64MB
-      timeCost: 3,
-      parallelism: 4,
-    });
+    return Telemetry.track('crypto', 'hash_password', async() => {
+      return await argon2.hash(password, {
+        type: argon2.argon2id,
+        memoryCost: 65536, // 64MB
+        timeCost: 3,
+        parallelism: 4,
+      });
+    });  
   }
 
   // Verify a raw password against an Argon2id hash
   static async verifyPassword(password: string, hash: string): Promise<boolean> {
-    try {
-      return await argon2.verify(hash, password);
-    } catch {
-      return false;
-    }
+    return Telemetry.track('crypto', 'verify_password', async () => {
+      try {
+        return await argon2.verify(hash, password);
+      } catch {
+        return false;
+      }
+    });  
   }
 
   // Generate a cryptographically secure random token (for invites/refresh tokens)

@@ -5,6 +5,9 @@ import path from 'path';
 import { initializeDatabase } from './db/index.js';
 import { initializeRedis } from './db/redis.js';
 import { errorHandler } from './middlewares/error.js';
+import { edgeTelemetry } from './middlewares/telemetry.js';
+import { startCleanupWorker } from './workers/cleanup.worker.js';
+import { startTelemetryWorker } from './workers/telemetry.worker.js';
 
 // Route Imports
 import otpRouter from './routes/otp.js';
@@ -22,6 +25,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+app.use(edgeTelemetry);
 
 const PORT = process.env.PORT || 3333;
 
@@ -42,4 +47,10 @@ app.listen(PORT, async () => {
   console.log(`🚀 Production-grade Auth Backend listening on port ${PORT}`);
   await initializeDatabase();
   await initializeRedis();
+
+  // START TELEMETRY
+  startTelemetryWorker();
+
+  // Clean Dead and revoked REFRESH TOKENS
+  startCleanupWorker();
 });

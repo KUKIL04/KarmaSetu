@@ -21,9 +21,9 @@ export default function AdminLogin() {
       // Point directly to the secure backend terminal route
       const response = await adminApiClient.post('/auth/superadmin/login', { email, password });
       
-      const { accessToken, user } = response.data;
+      const { accessToken, refreshToken, user } = response.data;
 
-      login(accessToken, user);
+      login(accessToken, refreshToken, user);
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Authentication sequence failed.');

@@ -36,7 +36,7 @@ export class QueryService {
   static async getTenantsByEmail(email: string) {
     const query = `
       SELECT u.id as user_id, u.password_hash, wm.status, wm.is_tenant_admin, u.first_name, u.last_name, u.email,
-             t.id as tenant_id, t.company_name, t.logo_url
+             t.id as tenant_id, t.company_name, t.logo_url, t.status as tenant_status
       FROM users u
       JOIN workspace_memberships wm ON u.id = wm.user_id
       JOIN tenants t ON wm.tenant_id = t.id
@@ -48,12 +48,23 @@ export class QueryService {
 
   static async getTenantsByUserId(userId: string) {
     const query = `
-      SELECT t.id as tenant_id, t.company_name, t.logo_url, wm.status
+      SELECT t.id as tenant_id, t.company_name, t.logo_url, wm.status, t.status as tenant_status
       FROM workspace_memberships wm
       JOIN tenants t ON wm.tenant_id = t.id
       WHERE wm.user_id = $1;
     `;
     const res = await pool.query(query, [userId]);
+    return res.rows;
+  }
+
+  static async getTenantAdmins(tenantId: string) {
+    const query = `
+      SELECT u.email, u.first_name, u.last_name
+      FROM users u
+      JOIN workspace_memberships wm ON u.id = wm.user_id
+      WHERE wm.tenant_id = $1 AND wm.is_tenant_admin = true;
+    `;
+    const res = await pool.query(query, [tenantId]);
     return res.rows;
   }
 
@@ -189,11 +200,14 @@ export class QueryService {
 
   // --- Refresh Tokens ---
   static async saveRefreshToken(userId: string, tenantId: string, tokenHash: string, expiresAt: Date) {
+    // PostgreSQL expects a UUID for tenant_id. If this is the SuperAdmin ('SYSTEM'), store NULL.
+    const dbTenantId = tenantId === 'SYSTEM' ? null : tenantId;
+
     const query = `
       INSERT INTO refresh_tokens (user_id, tenant_id, token_hash, expires_at)
       VALUES ($1, $2, $3, $4);
     `;
-    await pool.query(query, [userId, tenantId, tokenHash, expiresAt]);
+    await pool.query(query, [userId, dbTenantId, tokenHash, expiresAt]);
   }
 
   static async getRefreshToken(tokenHash: string) {
@@ -203,6 +217,15 @@ export class QueryService {
 
   static async revokeRefreshToken(tokenHash: string) {
     await pool.query('UPDATE refresh_tokens SET is_revoked = TRUE WHERE token_hash = $1', [tokenHash]);
+  }
+
+  static async cleanupExpiredTokens() {
+    const query = `
+      DELETE FROM refresh_tokens 
+      WHERE is_revoked = TRUE OR expires_at < CURRENT_TIMESTAMP;
+    `;
+    const res = await pool.query(query);
+    return res.rowCount; // Returns the number of rows deleted
   }
 
   // --- Invitations ---
